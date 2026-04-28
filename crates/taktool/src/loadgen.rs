@@ -125,6 +125,16 @@ pub(crate) struct LoadgenArgs {
     /// Traffic mix profile.
     #[arg(long, short = 'm', default_value = "realistic", value_enum)]
     mix: MixProfile,
+
+    /// On exit, print a single line of JSON to stdout summarizing the
+    /// run. Consumed by `scripts/bench-baseline.sh`.
+    #[arg(long)]
+    json: bool,
+
+    /// Tag to embed in the JSON output (e.g. "rust", "java-baseline").
+    /// Lets a comparison harness merge runs from different targets.
+    #[arg(long, default_value = "")]
+    tag: String,
 }
 
 /// Build the wire payload (TakMessage proto, length-prefixed) from one
@@ -347,18 +357,47 @@ pub(crate) async fn run(args: LoadgenArgs) -> Result<()> {
     let elapsed = started.elapsed().as_secs_f64();
     let sent = stats.sent_total.load(Ordering::Relaxed);
     let bytes = stats.bytes_total.load(Ordering::Relaxed);
+    let pli = stats.sent_pli.load(Ordering::Relaxed);
+    let chat = stats.sent_chat.load(Ordering::Relaxed);
+    let detail = stats.sent_detail.load(Ordering::Relaxed);
+    let errs = stats.write_errors.load(Ordering::Relaxed);
+    let msg_per_s = sent as f64 / elapsed;
+    let mb_per_s = (bytes as f64 / elapsed) / 1_048_576.0;
     info!(
         elapsed_s = elapsed,
         sent_total = sent,
         bytes_total = bytes,
-        msg_per_s = sent as f64 / elapsed,
-        mb_per_s = (bytes as f64 / elapsed) / 1_048_576.0,
-        pli = stats.sent_pli.load(Ordering::Relaxed),
-        chat = stats.sent_chat.load(Ordering::Relaxed),
-        detail = stats.sent_detail.load(Ordering::Relaxed),
-        errs = stats.write_errors.load(Ordering::Relaxed),
+        msg_per_s,
+        mb_per_s,
+        pli,
+        chat,
+        detail,
+        errs,
         "loadgen done"
     );
+    if args.json {
+        // One-line JSON record consumed by `scripts/bench-baseline.sh`.
+        // Hand-rolled rather than via serde_json to keep the dependency
+        // surface tight; numeric formatting matches Rust's debug repr.
+        println!(
+            r#"{{"tag":"{tag}","target":"{target}","connections":{conns},"rate":{rate},"duration":{dur},"mix":"{mix:?}","elapsed_s":{elapsed},"sent_total":{sent},"bytes_total":{bytes},"msg_per_s":{mps},"mb_per_s":{bps},"pli":{pli},"chat":{chat},"detail":{detail},"errors":{errs}}}"#,
+            tag = args.tag,
+            target = args.target,
+            conns = args.connections,
+            rate = args.rate,
+            dur = args.duration,
+            mix = args.mix,
+            elapsed = elapsed,
+            sent = sent,
+            bytes = bytes,
+            mps = msg_per_s,
+            bps = mb_per_s,
+            pli = pli,
+            chat = chat,
+            detail = detail,
+            errs = errs,
+        );
+    }
     Ok(())
 }
 
