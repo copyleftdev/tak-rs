@@ -1,0 +1,19 @@
+[package]
+name         = "tak-plugin-api"
+description  = "tak-rs wasm plugin contract — WIT + guest-side bindings."
+version      .workspace = true
+edition      .workspace = true
+rust-version .workspace = true
+license      .workspace = true
+authors      .workspace = true
+repository   .workspace = true
+
+# This crate is BOTH a build-time artifact (the WIT file shipped to
+# the host crate via `package.metadata.component`-style include) AND
+# a runtime crate plugin authors depend on to get pre-generated
+# guest bindings, so they don't need wit-bindgen at build time.
+[dependencies]
+wit-bindgen .workspace = true
+
+[lints]
+workspace = true

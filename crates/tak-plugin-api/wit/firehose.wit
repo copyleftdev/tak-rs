@@ -1,0 +1,85 @@
+/// tak-rs plugin contract — v0.
+///
+/// See `docs/decisions/0004-wasm-plugins.md` for the design intent.
+/// Bumped to 0.x.0 on any breaking shape change; bumped 0.0.x for
+/// additions that don't break existing plugins.
+package tak:plugin@0.1.0;
+
+interface log {
+    enum level {
+        trace,
+        debug,
+        info,
+        warn,
+        error,
+    }
+
+    /// Plugins emit log records via the host so output lands in the
+    /// same `tracing` schema as the rest of tak-rs. Stdout/stderr in
+    /// the wasm sandbox is redirected to `tracing::warn!` and
+    /// SHOULD NOT be relied on.
+    emit: func(level: level, message: string);
+}
+
+interface clock {
+    /// Monotonic milliseconds since plugin load. Plugins do NOT get
+    /// wall-clock — that is non-deterministic and a side channel.
+    now-ms: func() -> u64;
+}
+
+interface inbound {
+    /// One CoT event seen by the firehose, view-only.
+    record cot-event {
+        /// Wire bytes (length-prefixed protobuf TakMessage). The
+        /// host re-uses the underlying allocation across calls; do
+        /// not stash this list outside the call frame.
+        wire-bytes: list<u8>,
+        cot-type: string,
+        uid: string,
+        callsign: option<string>,
+        lat: f64,
+        lon: f64,
+        hae: f64,
+        send-time-ms: u64,
+        /// First 64 bits of the sender's group bitvector. Higher
+        /// bits (we have 256 total) are not exposed in v0.
+        sender-groups-low: u64,
+    }
+
+    /// What the host does with the event after the plugin returns.
+    variant action {
+        /// Forward unchanged. ~all messages should hit this path.
+        pass,
+        /// Drop silently. Host increments
+        /// `tak.plugin.<name>.dropped`.
+        drop,
+        /// Replace wire bytes. Host re-decodes and re-dispatches;
+        /// the returned bytes MUST be a valid TAK Protocol v1
+        /// frame. Cost: one extra decode pass per replaced
+        /// message. Discouraged for plugins running on >1% of
+        /// the firehose.
+        replace(list<u8>),
+    }
+
+    /// Called once per inbound CoT, on the plugin worker thread.
+    /// CPU time is bounded by the per-plugin
+    /// `max-cpu-ms-per-msg` setting; overruns fault the plugin
+    /// and inject `action::drop` on its behalf.
+    on-inbound: func(event: cot-event) -> action;
+
+    /// Called once at plugin load with operator-supplied JSON
+    /// config. Returning err marks the plugin as failed and
+    /// prevents it from receiving events.
+    init: func(config-json: string) -> result<_, string>;
+
+    /// Called once at plugin unload. Plugin should flush any
+    /// state. Bounded at 1 s; overruns are killed.
+    shutdown: func();
+}
+
+/// The component plugin authors implement.
+world tak-plugin {
+    export inbound;
+    import log;
+    import clock;
+}

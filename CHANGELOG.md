@@ -24,6 +24,24 @@ Internal milestones (M0–M5) and the issues that close them are referenced inli
 - **`tak-server --no-persist` flag** (env: `TAK_NO_PERSIST=true`) skips the
   persistence side-channel entirely. Used to measure pure dispatch
   throughput against an upstream Java server with persistence disabled.
+- **Wasm plugin host runtime scaffolding** (per decision 0004).
+  Two new crates land — neither is wired into `tak-server` yet,
+  but both compile clean against the published WIT contract:
+  - `crates/tak-plugin-api`: WIT file (`tak:plugin@0.1.0`) +
+    guest-side bindings via `wit_bindgen::generate!`. Plugin
+    authors `cargo add tak-plugin-api` to get pre-generated
+    bindings without configuring wit-bindgen themselves.
+  - `crates/tak-plugin-host`: wasmtime 44 wrapper. `PluginHost`
+    scans a configured directory, loads each `*.wasm` as a
+    component, spawns a `tokio::task::spawn_blocking` worker
+    per plugin to drain a bounded mpsc and call the plugin's
+    `on_inbound`. Plugin overload drops at the queue boundary
+    (same pattern as `Store::try_insert_event`); the H1 hot
+    path is unaffected. Host implements `log` (forwards to
+    `tracing`) and `clock` (monotonic since-load ms) imports.
+  Next: wire the host into `tak-server::firehose` behind
+  `--plugin-dir <path>` and ship a sample plugin
+  (`crates/plugins/geofence-redact`) as the smoke test.
 - **QUIC firehose listener** (`tak-server --quic`, default off). Binds a
   `quinn` endpoint on UDP/8090 with rustls TLS 1.3 + ALPN
   `tak-firehose/1`. One bidirectional stream per connection carrying

@@ -95,14 +95,23 @@ indicatif = "0.17"
 serde      = { version = "1", features = ["derive"] }
 serde_json = "1"
 
+# --- wasm component model (decision 0004 plugins) ---
+# wasmtime 44 is the latest stable line as of 2026-04. Earlier 34.x has
+# unpatched security advisories — never pin to anything older.
+wasmtime    = { version = "44", default-features = false, features = ["std", "runtime", "component-model", "cache", "cranelift", "pooling-allocator"] }
+wit-bindgen = "0.57"
+notify      = "8"
+
 # --- internal workspace crates ---
-tak-cot     = { path = "crates/tak-cot",     version = "0.0.1" }
-tak-proto   = { path = "crates/tak-proto",   version = "0.0.1" }
-tak-net     = { path = "crates/tak-net",     version = "0.0.1" }
-tak-bus     = { path = "crates/tak-bus",     version = "0.0.1" }
-tak-store   = { path = "crates/tak-store",   version = "0.0.1" }
-tak-mission = { path = "crates/tak-mission", version = "0.0.1" }
-tak-config  = { path = "crates/tak-config",  version = "0.0.1" }
+tak-cot         = { path = "crates/tak-cot",         version = "0.0.1" }
+tak-proto       = { path = "crates/tak-proto",       version = "0.0.1" }
+tak-net         = { path = "crates/tak-net",         version = "0.0.1" }
+tak-bus         = { path = "crates/tak-bus",         version = "0.0.1" }
+tak-store       = { path = "crates/tak-store",       version = "0.0.1" }
+tak-mission     = { path = "crates/tak-mission",     version = "0.0.1" }
+tak-config      = { path = "crates/tak-config",      version = "0.0.1" }
+tak-plugin-api  = { path = "crates/tak-plugin-api",  version = "0.0.1" }
+tak-plugin-host = { path = "crates/tak-plugin-host", version = "0.0.1" }
 
 # --- dev / test (Hughes property tests, Greef DST, Beck TDD) ---
 proptest    = "1"

@@ -1,0 +1,29 @@
+[package]
+name         = "tak-plugin-host"
+description  = "Wasm plugin host runtime for tak-rs (wasmtime + worker pool)."
+version      .workspace = true
+edition      .workspace = true
+rust-version .workspace = true
+license      .workspace = true
+authors      .workspace = true
+repository   .workspace = true
+
+[dependencies]
+wasmtime  .workspace = true
+tokio     .workspace = true
+tracing   .workspace = true
+thiserror .workspace = true
+anyhow    .workspace = true
+bytes     .workspace = true
+
+# Pulled only so cargo registers the path dependency that binds our
+# `bindgen!(path = "../tak-plugin-api/wit")` macro to the WIT source.
+# We don't import any tak-plugin-api Rust items here — the macro
+# reads the .wit file directly from the workspace.
+tak-plugin-api .workspace = true
+
+[lints]
+workspace = true
+
+[package.metadata.cargo-machete]
+ignored = ["tak-plugin-api"]
