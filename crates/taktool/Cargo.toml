@@ -9,12 +9,17 @@ authors      .workspace = true
 repository   .workspace = true
 
 [dependencies]
-clap    .workspace = true
-anyhow  .workspace = true
-tak-cot .workspace = true
+clap               .workspace = true
+anyhow             .workspace = true
+tracing            .workspace = true
+tracing-subscriber .workspace = true
+prost              .workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "net", "time", "sync", "io-util", "signal"] }
+tak-cot            .workspace = true
 
 [[bin]]
 name = "taktool"
 path = "src/main.rs"
 
 [lints]
+workspace = true

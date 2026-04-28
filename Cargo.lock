@@ -3422,7 +3422,11 @@ version = "0.0.1"
 dependencies = [
  "anyhow",
  "clap",
+ "prost",
  "tak-cot",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
