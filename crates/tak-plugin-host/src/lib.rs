@@ -36,9 +36,11 @@
 #![warn(missing_docs, missing_debug_implementations)]
 
 mod bindings;
+mod config;
 mod event;
 mod host;
 
+pub use config::{CapabilitiesSection, ConfigError, LimitsSection, PluginConfig, PluginSection};
 pub use event::{PluginAction, PluginEvent};
 pub use host::{Plugin, PluginHost, PluginHostConfig};
 
@@ -77,4 +79,8 @@ pub enum Error {
     /// Plugin worker channel was closed before the publish.
     #[error("plugin worker channel closed")]
     ChannelClosed,
+
+    /// Per-plugin TOML config failed to load or parse.
+    #[error(transparent)]
+    Config(#[from] config::ConfigError),
 }

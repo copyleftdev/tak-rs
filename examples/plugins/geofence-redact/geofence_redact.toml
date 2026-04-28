@@ -1,0 +1,14 @@
+[plugin]
+name = "geofence_redact"
+enabled = true
+priority = 100
+
+[limits]
+max-memory-mb = 32
+max-cpu-ms-per-msg = 1
+max-rss-leak-mb = 0
+
+[capabilities]
+filesystem = []
+network = []
+plugin-config = '{ "drop_below_lat": 36.0 }'

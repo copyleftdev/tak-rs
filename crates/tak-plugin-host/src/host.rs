@@ -22,11 +22,12 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::sync::mpsc;
 use tracing::{debug, info, warn};
 use wasmtime::component::{Component, HasSelf, Linker, ResourceTable};
-use wasmtime::{Config, Engine, Store};
+use wasmtime::{Config, Engine, ResourceLimiter, Store};
 use wasmtime_wasi::{WasiCtx, WasiCtxBuilder, WasiCtxView, WasiView};
 
 use crate::Error;
 use crate::bindings::{TakPlugin, clock, inbound::CotEvent, log};
+use crate::config::PluginConfig;
 use crate::event::{PluginAction, PluginEvent};
 
 /// Operator-tunable knobs for the plugin host.
@@ -133,13 +134,16 @@ impl PluginHost {
                 continue;
             }
             match Self::load_plugin(&engine, &path, &config).await {
-                Ok(plugin) => {
+                Ok(Some(plugin)) => {
                     info!(
                         plugin = %plugin.name,
                         path = %path.display(),
                         "plugin-host: loaded"
                     );
                     plugins.push(plugin);
+                }
+                Ok(None) => {
+                    // Already-logged: disabled by config.
                 }
                 Err(e) => {
                     warn!(path = %path.display(), error = ?e, "plugin-host: skipped");
@@ -155,12 +159,43 @@ impl PluginHost {
         engine: &Engine,
         path: &Path,
         config: &PluginHostConfig,
-    ) -> Result<Plugin, Error> {
+    ) -> Result<Option<Plugin>, Error> {
         let name = path
             .file_stem()
             .and_then(|s| s.to_str())
             .unwrap_or("unknown")
             .to_owned();
+
+        // Per-plugin TOML lives next to the wasm. Missing file =
+        // defaults; bad TOML is a hard error so a typo doesn't
+        // silently fall back to "no config" and surprise the
+        // operator.
+        let dir = path.parent().unwrap_or_else(|| Path::new("."));
+        let plugin_cfg = match PluginConfig::try_load(dir, &name)? {
+            Some((cfg, cfg_path)) => {
+                if let Some(declared) = cfg.plugin.name.as_deref()
+                    && declared != name
+                {
+                    warn!(
+                        plugin = %name,
+                        declared,
+                        cfg = %cfg_path.display(),
+                        "plugin-host: name in TOML doesn't match wasm filename stem; using stem"
+                    );
+                }
+                debug!(plugin = %name, cfg = %cfg_path.display(), "plugin-host: loaded TOML config");
+                cfg
+            }
+            None => {
+                debug!(plugin = %name, "plugin-host: no TOML config; using defaults");
+                PluginConfig::default()
+            }
+        };
+
+        if !plugin_cfg.plugin.enabled {
+            info!(plugin = %name, "plugin-host: disabled by config; skipping");
+            return Ok(None);
+        }
 
         let component = Component::from_file(engine, path).map_err(|e| Error::Load {
             path: path.to_path_buf(),
@@ -202,6 +237,7 @@ impl PluginHost {
         let component_for_worker = component;
         let linker_for_worker = linker;
         let name_for_worker = name.clone();
+        let plugin_cfg_for_worker = plugin_cfg;
         let _dropped_for_worker = dropped.clone();
         #[allow(clippy::disallowed_methods)]
         tokio::task::spawn_blocking(move || {
@@ -210,11 +246,12 @@ impl PluginHost {
                 engine_for_worker,
                 component_for_worker,
                 linker_for_worker,
+                plugin_cfg_for_worker,
                 rx,
             );
         });
 
-        Ok(Plugin { name, tx, dropped })
+        Ok(Some(Plugin { name, tx, dropped }))
     }
 
     /// Best-effort enqueue to every loaded plugin. Returns the
@@ -256,12 +293,16 @@ fn run_worker(
     engine: Engine,
     component: Component,
     linker: Linker<HostState>,
+    plugin_cfg: PluginConfig,
     mut rx: mpsc::Receiver<PluginEvent>,
 ) {
     // Deny-everything WasiCtx: no preopens, no env, no stdio
     // inheritance. Plugins that try to print() or read clock_now()
     // see deterministic empty results / errors.
     let wasi = WasiCtxBuilder::new().build();
+
+    let init_json = plugin_cfg.init_json().to_owned();
+    let mem_cap_bytes = plugin_cfg.memory_bytes_cap();
 
     let mut store = Store::new(
         &engine,
@@ -270,8 +311,15 @@ fn run_worker(
             started_at: std::time::Instant::now(),
             wasi,
             wasi_table: ResourceTable::new(),
+            limiter: MemoryLimiter::new(mem_cap_bytes),
         },
     );
+    // Wire the per-store ResourceLimiter so any linear-memory grow
+    // beyond the configured cap fails inside wasmtime. The wasm
+    // module sees the alloc as Err and decides what to do — most
+    // plugins will trap, which we surface as an `on_inbound`
+    // failure log.
+    store.limiter(|st| &mut st.limiter);
 
     let bindings = match TakPlugin::instantiate(&mut store, &component, &linker) {
         Ok(b) => b,
@@ -281,9 +329,10 @@ fn run_worker(
         }
     };
 
-    // Plugins get an empty config in v0; per-plugin TOML is
-    // future work.
-    if let Err(e) = bindings.tak_plugin_inbound().call_init(&mut store, "{}") {
+    if let Err(e) = bindings
+        .tak_plugin_inbound()
+        .call_init(&mut store, &init_json)
+    {
         warn!(plugin = %name, error = ?e, "plugin-host: init() trapped; worker exiting");
         return;
     }
@@ -329,6 +378,42 @@ struct HostState {
     started_at: std::time::Instant,
     wasi: WasiCtx,
     wasi_table: ResourceTable,
+    limiter: MemoryLimiter,
+}
+
+/// Caps wasm linear-memory growth at the configured byte budget.
+/// Other resource classes (tables, instances) are left at wasmtime
+/// defaults — the threat we're fencing is "plugin allocates 4 GiB
+/// and the host OOMs," not "plugin creates 50 tables".
+#[derive(Debug)]
+struct MemoryLimiter {
+    max_memory_bytes: usize,
+}
+
+impl MemoryLimiter {
+    fn new(max_memory_bytes: usize) -> Self {
+        Self { max_memory_bytes }
+    }
+}
+
+impl ResourceLimiter for MemoryLimiter {
+    fn memory_growing(
+        &mut self,
+        _current: usize,
+        desired: usize,
+        _maximum: Option<usize>,
+    ) -> wasmtime::Result<bool> {
+        Ok(desired <= self.max_memory_bytes)
+    }
+
+    fn table_growing(
+        &mut self,
+        _current: usize,
+        _desired: usize,
+        _maximum: Option<usize>,
+    ) -> wasmtime::Result<bool> {
+        Ok(true)
+    }
 }
 
 impl WasiView for HostState {
