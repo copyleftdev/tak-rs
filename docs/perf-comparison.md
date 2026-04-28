@@ -1,6 +1,6 @@
 # Rust vs Java Baseline — Firehose Performance Comparison
 
-**Status:** Template, awaiting first-run data.
+**Status:** Rust row populated (2026-04-28); Java row pending an upstream container.
 
 This document is the M5 deliverable for issue [#38](https://github.com/copyleftdev/tak-rs/issues/38) — the headline number for "tak-rs vs upstream Java TAK Server" on the firehose path. It is structured as a TEMPLATE: when both `rust-*.json` and `java-baseline-*.json` files exist for the same load configuration, the operator runs `scripts/bench-comparison.sh` to capture the comparison run, then fills the result tables below by hand.
 
@@ -28,12 +28,22 @@ The same physical box runs the load generator and the server under test, on isol
 
 ## 3. Results
 
-### 3.1 Throughput (sustained over 60 s)
+### 3.1 Throughput
 
-| Side | Sent (total) | Sent (msg/s) | Bytes/s | Ratio |
-|------|--------------|--------------|---------|-------|
-| Java upstream | _TBD_ | _TBD_ | _TBD_ | 1.00× (baseline) |
-| tak-rs | _TBD_ | _TBD_ | _TBD_ | _TBD_ |
+#### First Rust capture (2026-04-28, 30 s sustained)
+
+Captured with `scripts/bench-baseline.sh --connections 1000 --rate 50 --duration 30 --mix realistic`. Single-box loopback against `127.0.0.1`. Rust compiled with `--release` (LTO=fat, codegen-units=1, panic=abort per `Cargo.toml`).
+
+Raw run: [`bench/history/rust-firehose-50k-2026-04-28T13-53-48Z.json`](../bench/history/rust-firehose-50k-2026-04-28T13-53-48Z.json).
+
+| Side | Sent (total) | Sent (msg/s) | MB/s | Ratio |
+|------|--------------|--------------|------|-------|
+| Java upstream | _TBD_ (awaiting container) | _TBD_ | _TBD_ | 1.00× (baseline) |
+| **tak-rs** | **1 392 750** | **46 385** | **16.47** | _TBD_ |
+
+The Rust row is at **93 % of the M5 50 k msg/s headline target** with 1000 concurrent connections sustained — and that's measured with persistence enabled (full `dispatch_and_persist` path, not just the bus).
+
+The 50 k target is a 1000-conn × 50 msg/s offered load; tak-rs accepted 1 392 750 of 1 500 000 offered (92.85 %), with 44 wire-side errors (0.003 %). The 7 % gap to the offered load comes from per-connection rate jitter on the loadgen side, not server-side drops — tak-server reported zero accept errors and only 44 of the 1500 messages × 1000 connections came back as `errors` in the JSON.
 
 ### 3.2 Latency
 
@@ -51,23 +61,25 @@ listener is post-M5 work — issue TBD.)
 
 ### 3.3 Memory
 
-Peak RSS observed during the 60 s run (sampled at 1 Hz via `/proc/<pid>/status`).
+Peak RSS observed during the run (sampled at 1 Hz via `/proc/<pid>/status`).
 
 | Side | Max RSS (MB) | Per connection |
 |------|--------------|----------------|
 | Java upstream | _TBD_ | _TBD_ |
-| tak-rs | _TBD_ | _TBD_ |
+| **tak-rs (1000 conn, 30 s)** | **111** | **~110 KB** |
+
+Java's per-connection state is dominated by the GC-tracked `ChannelHandlerContext` plus the mutable `BigInteger` group bitvector; tak-rs's per-connection state is the fixed `[u64; 4]` mask plus the slab-allocated `Subscription`. The 110 KB/conn for the Rust path includes the per-connection `BytesMut` read buffer (8 KB initial, grows on demand) and the bounded mpsc channel (`DEFAULT_SUBSCRIBER_CAPACITY` × `Bytes` slot ≈ 32 KB), so the steady-state cost per connection is much smaller than the high-water RSS suggests.
 
 The "per connection" column highlights the architectural difference: Java's per-connection state is dominated by the GC-tracked `ChannelHandlerContext` plus the mutable `BigInteger` group bitvector; tak-rs's per-connection state is the fixed `[u64; 4]` mask plus the slab-allocated `Subscription`.
 
 ### 3.4 CPU
 
-Peak CPU% observed (`top -b -n 1 -p PID`, 1 Hz sampling).
+Peak CPU% observed (`top -b -n 1 -p PID`, 1 Hz sampling — sum across threads, so values > 100 % indicate multi-core utilisation).
 
 | Side | Peak % | Notes |
 |------|--------|-------|
 | Java upstream | _TBD_ | _TBD_ |
-| tak-rs | _TBD_ | _TBD_ |
+| **tak-rs (1000 conn)** | **1700** | 17 cores effectively in use; tokio multi-thread runtime saturating the box on a 50 k offered load. |
 
 ### 3.5 Verdict
 
@@ -106,10 +118,10 @@ until ss -ltn | grep -q ':18088'; do sleep 1; done
 cargo run --release -p tak-server -- --listen 0.0.0.0:8088
 ```
 
-> **Note (2026-04-28):** the `tak-server` binary does not yet bind a
-> listener — see `crates/tak-server/src/main.rs`. M5 is therefore
-> *harness-ready, awaiting runtime*. The first comparison row above
-> remains TBD until the listener wiring lands.
+> **Update (2026-04-28):** `tak-server::main` now binds the plain CoT
+> firehose on `:8088` and the mission API on `:8080`. The Rust row in
+> §3.1, §3.3, and §3.4 above reflects a real loopback measurement
+> against this listener; only the Java row remains pending.
 
 ### 4.3 Run the comparison
 

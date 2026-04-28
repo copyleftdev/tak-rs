@@ -25,10 +25,15 @@ anyhow             .workspace = true
 mimalloc           .workspace = true
 bytes              .workspace = true
 thiserror          .workspace = true
+clap = { workspace = true, features = ["env"] }
+prost              .workspace = true
+axum               .workspace = true
 
-tak-bus    .workspace = true
-tak-store  .workspace = true
-tak-proto  .workspace = true
+tak-bus     .workspace = true
+tak-store   .workspace = true
+tak-proto   .workspace = true
+tak-cot     .workspace = true
+tak-mission .workspace = true
 
 [dev-dependencies]
 testcontainers .workspace = true

@@ -3391,10 +3391,15 @@ name = "tak-server"
 version = "0.0.1"
 dependencies = [
  "anyhow",
+ "axum",
  "bytes",
+ "clap",
  "mimalloc",
+ "prost",
  "sqlx",
  "tak-bus",
+ "tak-cot",
+ "tak-mission",
  "tak-proto",
  "tak-store",
  "testcontainers",

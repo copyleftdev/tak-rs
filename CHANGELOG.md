@@ -11,6 +11,13 @@ Internal milestones (M0–M5) and the issues that close them are referenced inli
 
 ### Added
 
+- **`tak-server` listeners are live.** `tak-server::firehose` exposes a plain-TCP
+  accept loop (default `:8088`) that decodes framed TAK Protocol v1 messages,
+  feeds them into `pipeline::dispatch_and_persist`, and re-broadcasts to all
+  connected subscribers. The mission API (default `:8080`) and the firehose
+  share the same `Store` handle. First real Rust baseline captured: **46 385
+  msg/s, 1000 conns, 16.5 MB/s, 111 MB RSS** at 50 k msg/s offered load —
+  93 % of the M5 50 k headline target. Numbers in `docs/perf-comparison.md`.
 - **`xtask` automation crate.** New `crates/xtask` accessible via `cargo xt <verb>`.
   First verb: `proto-diff`, which compares vendored `.proto` files against
   `.scratch/takserver-java` and reports byte-equality + missing-on-each-side. Used

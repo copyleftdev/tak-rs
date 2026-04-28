@@ -4,12 +4,11 @@
 //! handles process bring-up; everything composable lives here so it can
 //! be exercised by integration tests against real components.
 //!
-//! Today it exposes the [`pipeline`] module — the glue that ties bus
-//! dispatch (M2) to persistent storage (M3) into a single per-message
-//! call. Over the M4/M5 milestones this will grow to also include:
-//! - the listener accept loop (uses `tak_net`)
-//! - the per-connection writer task (drains subscription mpsc → socket)
-//! - the mission-API HTTP server (uses `tak_mission`)
+//! Modules:
+//! - [`pipeline`] — glue that ties bus dispatch (M2) to persistent
+//!   storage (M3) into a single per-message call.
+//! - [`firehose`] — TCP accept loop + per-connection reader/writer
+//!   tasks that drive the bus from the wire.
 #![cfg_attr(
     not(test),
     deny(
@@ -22,4 +21,5 @@
 )]
 #![warn(missing_docs, missing_debug_implementations)]
 
+pub mod firehose;
 pub mod pipeline;
