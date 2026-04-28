@@ -118,3 +118,125 @@ async fn schema_reports_max_migration_version() {
         "expected to apply migrations through V99, max_v={max_v}"
     );
 }
+
+// ===========================================================================
+// Issue #29 — batched insert
+// ===========================================================================
+
+use tak_store::CotInsert;
+
+fn synth(uid: &str) -> CotInsert {
+    CotInsert {
+        uid: uid.to_owned(),
+        cot_type: "a-f-G-U-C".to_owned(),
+        time_ms: 1_777_266_000_000,
+        start_ms: 1_777_266_000_000,
+        stale_ms: 1_777_266_090_000,
+        how: "m-g".to_owned(),
+        lat: 34.0,
+        lon: -118.0,
+        hae: 245.0,
+        ce: 9.0,
+        le: 9_999_999.0,
+        detail: r#"<takv platform="ATAK-CIV"/>"#.to_owned(),
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "needs Docker"]
+async fn batched_insert_persists_all_events() {
+    let (_container, url) = start_postgis().await;
+    let store = Store::connect_and_migrate(&url).await.unwrap();
+
+    const N: usize = 250;
+    for i in 0..N {
+        store
+            .try_insert_event(synth(&format!("ANDROID-{i}")))
+            .expect("channel not full");
+    }
+
+    let drained = store
+        .wait_for_drain(std::time::Duration::from_secs(10))
+        .await;
+    assert_eq!(
+        drained, N as u64,
+        "writer should have inserted all N events"
+    );
+
+    let count_row = sqlx::query("SELECT COUNT(*)::bigint AS n FROM cot_router")
+        .fetch_one(store.pool())
+        .await
+        .unwrap();
+    let n: i64 = count_row.try_get("n").unwrap();
+    assert_eq!(n, i64::try_from(N).unwrap());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "needs Docker"]
+async fn try_insert_drops_when_channel_full() {
+    let (_container, url) = start_postgis().await;
+    // Tiny channel so we can fill it. flush_interval is huge so the writer
+    // doesn't drain before we check.
+    let store = tak_store::Store::connect_and_migrate_with(
+        &url,
+        4,                                 // channel capacity
+        2,                                 // batch_max
+        std::time::Duration::from_secs(5), // flush_interval
+    )
+    .await
+    .unwrap();
+
+    // Burst until something drops. With cap=4, we expect ~4-6 successes
+    // (depending on writer-task drain timing) and the rest dropped.
+    let mut dropped: u64 = 0;
+    let total: u64 = 50;
+    for i in 0..total {
+        if store.try_insert_event(synth(&format!("UID-{i}"))).is_err() {
+            dropped += 1;
+        }
+    }
+    assert!(dropped > 0, "with cap=4 and 50 sends, some MUST drop");
+    assert_eq!(
+        store.dropped_count(),
+        dropped,
+        "dropped_count counter mismatch"
+    );
+
+    // Eventually persists what made it through.
+    let drained = store
+        .wait_for_drain(std::time::Duration::from_secs(15))
+        .await;
+    assert_eq!(
+        drained,
+        total - dropped,
+        "successful sends should all persist"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "needs Docker"]
+async fn inserted_rows_have_postgis_geometry() {
+    let (_container, url) = start_postgis().await;
+    let store = Store::connect_and_migrate(&url).await.unwrap();
+
+    store.try_insert_event(synth("GEO-1")).unwrap();
+    let drained = store
+        .wait_for_drain(std::time::Duration::from_secs(5))
+        .await;
+    assert_eq!(drained, 1);
+
+    // The PostGIS geometry column should be populated with a valid Point.
+    let row = sqlx::query(
+        "SELECT ST_X(event_pt) AS lon, ST_Y(event_pt) AS lat, ST_SRID(event_pt) AS srid \
+         FROM cot_router WHERE uid = 'GEO-1'",
+    )
+    .fetch_one(store.pool())
+    .await
+    .unwrap();
+    let lon: f64 = row.try_get("lon").unwrap();
+    let lat: f64 = row.try_get("lat").unwrap();
+    let srid: i32 = row.try_get("srid").unwrap();
+    assert!((lon - -118.0).abs() < 1e-9);
+    assert!((lat - 34.0).abs() < 1e-9);
+    assert_eq!(srid, 4326, "PostGIS SRID must be WGS-84");
+}
