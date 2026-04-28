@@ -11,7 +11,7 @@ use std::time::Duration;
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use http_body_util::BodyExt;
-use tak_mission::{Mission, MissionRouter};
+use tak_mission::{Mission, MissionRouter, SubscriptionResponse};
 use tak_store::Store;
 use testcontainers::core::{ContainerPort, IntoContainerPort, WaitFor};
 use testcontainers::runners::AsyncRunner;
@@ -187,6 +187,78 @@ async fn get_mission_unknown_returns_404() {
         .unwrap();
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+}
+
+// ===========================================================================
+// #34 — POST /missions/:name/subscription
+// ===========================================================================
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "needs Docker"]
+async fn subscribe_to_existing_mission_returns_201_with_token() {
+    let (_c, url) = start_postgis().await;
+    let store = Store::connect_and_migrate(&url).await.unwrap();
+    let app = router_with_seed(store).await;
+
+    let req = Request::builder()
+        .method("POST")
+        .uri("/missions/alpha/subscription")
+        .body(Body::empty())
+        .unwrap();
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::CREATED);
+
+    let body = resp.into_body().collect().await.unwrap().to_bytes();
+    let sub: SubscriptionResponse = serde_json::from_slice(&body).unwrap();
+    assert!(sub.token.starts_with("sub-"), "got token: {}", sub.token);
+    assert_eq!(
+        sub.sse_url,
+        format!("/missions/alpha/changes?token={}", sub.token)
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "needs Docker"]
+async fn subscribe_to_unknown_mission_returns_404() {
+    let (_c, url) = start_postgis().await;
+    let store = Store::connect_and_migrate(&url).await.unwrap();
+    let app = MissionRouter::build(store);
+
+    let req = Request::builder()
+        .method("POST")
+        .uri("/missions/does-not-exist/subscription")
+        .body(Body::empty())
+        .unwrap();
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "needs Docker"]
+async fn subscription_tokens_are_unique() {
+    let (_c, url) = start_postgis().await;
+    let store = Store::connect_and_migrate(&url).await.unwrap();
+    let app = router_with_seed(store).await;
+
+    let req1 = Request::builder()
+        .method("POST")
+        .uri("/missions/alpha/subscription")
+        .body(Body::empty())
+        .unwrap();
+    let resp1 = app.clone().oneshot(req1).await.unwrap();
+    let body1 = resp1.into_body().collect().await.unwrap().to_bytes();
+    let s1: SubscriptionResponse = serde_json::from_slice(&body1).unwrap();
+
+    let req2 = Request::builder()
+        .method("POST")
+        .uri("/missions/alpha/subscription")
+        .body(Body::empty())
+        .unwrap();
+    let resp2 = app.oneshot(req2).await.unwrap();
+    let body2 = resp2.into_body().collect().await.unwrap().to_bytes();
+    let s2: SubscriptionResponse = serde_json::from_slice(&body2).unwrap();
+
+    assert_ne!(s1.token, s2.token, "two POSTs must yield distinct tokens");
 }
 
 #[tokio::test(flavor = "multi_thread")]

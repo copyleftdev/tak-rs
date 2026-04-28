@@ -15,6 +15,7 @@ thiserror   .workspace = true
 tracing     .workspace = true
 serde       .workspace = true
 sqlx        .workspace = true
+parking_lot .workspace = true
 tak-store   .workspace = true
 
 [dev-dependencies]
