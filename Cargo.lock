@@ -4586,6 +4586,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "tak-soak"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "clap",
+ "testcontainers",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "tak-store"
 version = "0.0.1"
 dependencies = [

@@ -1,0 +1,24 @@
+[package]
+name         = "tak-soak"
+description  = "Wall-clock soak harness for tak-server. Orchestrates postgres + tak-server + taktool loadgen subprocesses, samples RSS + metrics per-second, fails the run on RSS drift."
+version      .workspace = true
+edition      .workspace = true
+rust-version .workspace = true
+license      .workspace = true
+authors      .workspace = true
+repository   .workspace = true
+
+[[bin]]
+name = "tak-soak"
+path = "src/main.rs"
+
+[dependencies]
+tokio    = { workspace = true, features = ["full", "process"] }
+clap     = { workspace = true, features = ["env"] }
+anyhow   .workspace = true
+tracing  .workspace = true
+tracing-subscriber .workspace = true
+testcontainers     .workspace = true
+
+[lints]
+workspace = true
