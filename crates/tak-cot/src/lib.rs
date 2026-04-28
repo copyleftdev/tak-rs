@@ -93,4 +93,5 @@ impl From<core::str::Utf8Error> for Error {
 /// Convenience result type used across the codec.
 pub type Result<T> = core::result::Result<T, Error>;
 
+pub mod proto;
 pub mod xml;

@@ -276,7 +276,10 @@ fn parse_point_attrs(header: &str) -> Result<PointAttrs<'_>> {
 /// Walk `attr1="val1" attr2="val2"` style attributes from a `<name attrs ...>`
 /// element-header slice. Yields each (key, value) pair as `&'a str` slices.
 /// Returns [`Error::EntityNotSupported`] if any value contains `&`.
-fn walk_attrs<'a, F>(header: &'a str, mut f: F) -> Result<()>
+///
+/// Exposed crate-internally so the proto converter can re-parse a detail
+/// child's element header without spinning up a fresh quick-xml reader.
+pub(crate) fn walk_attrs<'a, F>(header: &'a str, mut f: F) -> Result<()>
 where
     F: FnMut(&'a str, &'a str) -> Result<()>,
 {
