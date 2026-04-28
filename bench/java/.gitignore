@@ -1,0 +1,3 @@
+# tak/ is assembled at bench time by scripts/bench-java-baseline.sh from
+# .scratch/takserver-java/ build outputs. Not committed.
+tak/
