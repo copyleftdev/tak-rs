@@ -1,0 +1,101 @@
+# cargo-deny config — enforces the dep policy from CLAUDE.md and docs/invariants.md.
+# Run: `cargo deny check` (advisories, bans, licenses, sources).
+# Required-passing in CI; PostToolUse hook runs it whenever Cargo.toml changes.
+
+[graph]
+# We support stable Rust on Linux x86_64 / aarch64 + macOS aarch64 for dev.
+targets = [
+    "x86_64-unknown-linux-gnu",
+    "aarch64-unknown-linux-gnu",
+    "aarch64-apple-darwin",
+]
+all-features = false
+no-default-features = false
+
+[output]
+feature-depth = 1
+
+# ---------------------------------------------------------------------------
+# Advisories — vulnerability database. Yanked crates and unmaintained ones fail.
+# ---------------------------------------------------------------------------
+[advisories]
+db-path = "~/.cargo/advisory-db"
+db-urls = ["https://github.com/rustsec/advisory-db"]
+yanked = "deny"
+ignore = []
+
+# ---------------------------------------------------------------------------
+# Licenses — only OSI-approved permissive + MPL-2.0 + Unicode-3.0.
+# ---------------------------------------------------------------------------
+[licenses]
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "MPL-2.0",
+    "Unicode-3.0",
+    "Unicode-DFS-2016",
+    "Zlib",
+    "CC0-1.0",
+]
+confidence-threshold = 0.93
+exceptions = []
+
+# ---------------------------------------------------------------------------
+# Bans — the heart of our dep policy. See docs/invariants.md D3-D5.
+# ---------------------------------------------------------------------------
+[bans]
+multiple-versions = "warn"      # tighten to "deny" once we stabilize
+wildcards = "deny"
+highlight = "all"
+workspace-default-features = "allow"
+external-default-features = "allow"
+
+deny = [
+    # TLS — we use rustls.
+    { name = "openssl",     reason = "use rustls (invariant D4)" },
+    { name = "openssl-sys", reason = "use rustls (invariant D4)" },
+    { name = "native-tls",  reason = "use rustls (invariant D4)" },
+
+    # Time — we use jiff.
+    { name = "chrono", reason = "use jiff (invariant D3)" },
+    { name = "time",   reason = "use jiff (invariant D3)" },
+
+    # Logging — we use tracing.
+    { name = "log", reason = "use tracing (invariant D5); transitive use exempt below" },
+    { name = "env_logger", reason = "use tracing-subscriber" },
+
+    # Statics — std now has OnceLock / LazyLock.
+    { name = "lazy_static", reason = "use std::sync::OnceLock or LazyLock" },
+
+    # XML — quick-xml only.
+    { name = "xml-rs", reason = "use quick-xml" },
+
+    # Async runtimes — tokio only.
+    { name = "async-std", reason = "use tokio (invariant: single runtime)" },
+    { name = "smol",      reason = "use tokio" },
+]
+
+# Transitive `log` is everywhere in the ecosystem. Allow it to exist as a transitive
+# dep but not in our direct deps. tracing-log bridges it for us.
+skip = [
+    { name = "log" },  # transitive only — direct use is caught by the deny above (cargo-deny applies the deny to direct AND transitive; remove this once tracing-log bridge is wired)
+]
+
+# Crates that genuinely need a single version pinned across the workspace.
+skip-tree = []
+
+# ---------------------------------------------------------------------------
+# Sources — only crates.io + a small allowlist of git deps.
+# ---------------------------------------------------------------------------
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []
+
+[sources.allow-org]
+github = []

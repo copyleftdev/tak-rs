@@ -1,0 +1,34 @@
+# clippy thresholds — see CLAUDE.md and docs/invariants.md for the rules these support.
+# Lint enable/disable lives in workspace Cargo.toml under [workspace.lints.clippy] and
+# in per-crate lib.rs via #![deny(...)] / #![warn(...)].
+
+# We're pre-1.0; freedom to break the API outweighs strict semver linting.
+avoid-breaking-exported-api = false
+
+# Cap complexity. If a function trips this, refactor — it's almost always doing too much.
+cognitive-complexity-threshold = 25
+type-complexity-threshold = 250
+too-many-arguments-threshold = 7
+too-many-lines-threshold = 200
+
+# Discourage stringly-typed APIs.
+single-char-binding-names-threshold = 4
+trivial-copy-size-limit = 16
+
+# Match exhaustiveness — non-exhaustive enums are noise unless we genuinely add variants.
+enum-variant-name-threshold = 3
+struct-excessive-bools = 3
+
+# Documentation
+missing-docs-in-crate-items = false  # tighten to true once each crate's lib.rs has docs
+
+# Disallow these methods globally — bypass observability or perf invariants.
+disallowed-methods = [
+    { path = "std::sync::Mutex::new", reason = "use parking_lot::Mutex on hot paths; std::sync::Mutex only on cold paths and document why" },
+    { path = "tokio::spawn", reason = "use tak_server::tasks::spawn for named, traced, time-bounded tasks (invariant N3)" },
+]
+
+# Disallow these types in lib code.
+disallowed-types = [
+    { path = "std::time::SystemTime", reason = "use jiff::Timestamp for wall-clock time (invariant D3)" },
+]

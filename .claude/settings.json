@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          { "type": "command", "command": ".claude/hooks/pre-edit-context.sh" }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          { "type": "command", "command": ".claude/hooks/post-edit-cargo.sh" }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          { "type": "command", "command": ".claude/hooks/stop-summary.sh" }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(cargo build*)",
+      "Bash(cargo check*)",
+      "Bash(cargo clippy*)",
+      "Bash(cargo fmt*)",
+      "Bash(cargo test*)",
+      "Bash(cargo nextest*)",
+      "Bash(cargo bench*)",
+      "Bash(cargo deny*)",
+      "Bash(cargo machete*)",
+      "Bash(cargo tree*)",
+      "Bash(cargo metadata*)",
+      "Bash(cargo doc*)",
+      "Bash(cargo expand*)",
+      "Bash(cargo run -p taktool*)",
+      "Bash(cargo run -p tak-server*)",
+      "Bash(rustfmt*)",
+      "Bash(rustc --version)",
+      "Bash(rustup show)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git show*)",
+      "Bash(git ls-files*)",
+      "Bash(git rev-parse*)",
+      "Bash(git -C .scratch/takserver-java *)",
+      "Bash(grep*)",
+      "Bash(rg*)",
+      "Bash(find . *)",
+      "Bash(ls*)",
+      "Bash(tree*)",
+      "Bash(wc*)",
+      "Bash(taskset*)",
+      "Bash(tcpdump -r *)",
+      "Bash(tshark -r *)",
+      "Bash(jq*)"
+    ],
+    "deny": [
+      "Bash(rm -rf /*)",
+      "Bash(rm -rf ~/*)",
+      "Bash(git push --force*)",
+      "Bash(git reset --hard origin/*)",
+      "Bash(cargo install*)"
+    ]
+  }
+}

@@ -1,0 +1,63 @@
+# Build profiles + aliases for tak-rs. See docs/invariants.md for the perf rationale.
+
+# -----------------------------------------------------------------------------
+# Profiles
+# -----------------------------------------------------------------------------
+# `release` is what production ships. Tuned for runtime perf at the cost of
+# build time — fine, we don't release every push.
+#
+# Note: profile *settings* must live in the workspace Cargo.toml's
+# [profile.release] table; this file sets defaults for things Cargo.toml can't,
+# plus aliases. We mirror the intended profile here as a comment for review.
+#
+# [profile.release]
+# lto = "fat"
+# codegen-units = 1
+# panic = "abort"
+# strip = "symbols"
+# debug = "line-tables-only"   # backtraces still useful, binary stays small
+# opt-level = 3
+#
+# [profile.bench]
+# inherits = "release"
+# debug = true                  # full DWARF for perf/flamegraph
+# strip = "none"
+#
+# [profile.dist]
+# inherits = "release"
+# # If we ever ship a binary, this is the pgo/bolted variant.
+
+# -----------------------------------------------------------------------------
+# Aliases — keep CLI verbs short.
+# -----------------------------------------------------------------------------
+[alias]
+nt   = "nextest run"
+ntw  = "nextest run --workspace"
+xt   = "run -p xtask --"
+denyc = "deny check"
+mach  = "machete"
+udeps = "udeps --all-targets"          # requires nightly
+flame = "flamegraph"
+
+# Bench helpers — used by /bench-hot
+benchq = "bench --bench firehose -- --quick"
+benchf = "bench --bench firehose"
+
+# -----------------------------------------------------------------------------
+# Build flags
+# -----------------------------------------------------------------------------
+# Default builds stay portable. Use RUSTFLAGS or per-target overrides for
+# `target-cpu=native` when benching locally.
+
+[build]
+rustflags = []
+
+# Local-only benching: uncomment when you want native CPU features.
+# [target.'cfg(target_arch = "x86_64")']
+# rustflags = ["-C", "target-cpu=native"]
+
+# -----------------------------------------------------------------------------
+# Network
+# -----------------------------------------------------------------------------
+[net]
+git-fetch-with-cli = true   # avoids libgit2 issues in restricted environments

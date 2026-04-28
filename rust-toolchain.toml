@@ -1,0 +1,13 @@
+[toolchain]
+channel    = "stable"
+components = ["rustfmt", "clippy", "llvm-tools-preview", "rust-src"]
+profile    = "default"
+targets    = []
+
+# We pin to "stable" rather than a specific version until the project has a
+# known-good baseline. Once M0 lands and benches are recorded, replace
+# `channel = "stable"` with the exact version (e.g. `channel = "1.86.0"`) to
+# keep CI reproducible.
+#
+# rust-src is included so loom and proptest can pull in stdlib for instrumented
+# builds; llvm-tools-preview is for cargo-llvm-cov coverage runs.

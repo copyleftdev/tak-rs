@@ -1,0 +1,34 @@
+[package]
+name         = "tak-net"
+description  = "Network listeners (TCP / TLS / UDP / multicast / QUIC) for tak-rs."
+version      .workspace = true
+edition      .workspace = true
+rust-version .workspace = true
+license      .workspace = true
+authors      .workspace = true
+repository   .workspace = true
+
+[dependencies]
+tokio          .workspace = true
+tokio-util     .workspace = true
+bytes          .workspace = true
+rustls         .workspace = true
+tokio-rustls   .workspace = true
+rustls-pemfile .workspace = true
+socket2        .workspace = true
+x509-parser    .workspace = true
+tracing        .workspace = true
+thiserror      .workspace = true
+tak-cot        .workspace = true
+tak-proto      .workspace = true
+
+[features]
+default = []
+quic    = ["dep:quinn"]
+
+[dependencies.quinn]
+workspace = true
+optional  = true
+
+[lints]
+workspace = true

@@ -1,0 +1,19 @@
+/target
+/.scratch
+**/*.rs.bk
+.DS_Store
+
+# criterion + bench history kept (it's the trend record); raw HTML is not.
+target/criterion/**/*.html
+target/criterion/**/report/
+
+# fuzz artifacts (corpus is committed; crashes are not)
+crates/*/fuzz/artifacts/
+
+# claude state markers
+.claude/state/touched-src
+
+# editor noise
+*.swp
+.vscode/
+.idea/

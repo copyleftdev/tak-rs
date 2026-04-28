@@ -1,0 +1,17 @@
+[package]
+name         = "tak-config"
+description  = "CoreConfig.xml subset parser for tak-rs (strict; unknown sections error)."
+version      .workspace = true
+edition      .workspace = true
+rust-version .workspace = true
+license      .workspace = true
+authors      .workspace = true
+repository   .workspace = true
+
+[dependencies]
+quick-xml  .workspace = true
+serde      .workspace = true
+thiserror  .workspace = true
+
+[lints]
+workspace = true

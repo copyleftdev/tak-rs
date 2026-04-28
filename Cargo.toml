@@ -1,0 +1,165 @@
+[workspace]
+resolver = "3"
+members  = ["crates/*"]
+
+[workspace.package]
+version      = "0.0.1"
+edition      = "2024"
+rust-version = "1.85"
+license      = "MIT OR Apache-2.0"
+authors      = ["dj <dj@codetestcode.io>"]
+repository   = "https://github.com/codetestcode/tak-rs"
+
+# ---------------------------------------------------------------------------
+# Centralized dependency versions.
+# Per-crate Cargo.toml uses `tokio.workspace = true` etc.
+# Crate authors picked from docs/personas.md.
+# ---------------------------------------------------------------------------
+[workspace.dependencies]
+# --- async runtime + middleware (Lerche stack) ---
+tokio       = { version = "1",   features = ["full"] }
+tokio-util  = { version = "0.7", features = ["codec"] }
+tokio-stream = "0.1"
+tower       = "0.5"
+tower-http  = { version = "0.6", features = ["trace", "compression-gzip"] }
+hyper       = "1"
+axum        = "0.8"
+futures     = "0.3"
+
+# --- crypto / network (Smith + Ochtman) ---
+rustls       = { version = "0.23", default-features = false, features = ["aws_lc_rs", "tls12"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["aws_lc_rs", "tls12"] }
+rustls-pemfile = "2"
+quinn        = "0.11"
+socket2      = "0.5"
+x509-parser  = "0.16"
+
+# --- bytes + zero-copy (Lerche) ---
+bytes = "1"
+
+# --- protobuf (Tolnay-tradition codegen) ---
+prost       = "0.13"
+prost-build = "0.13"
+prost-types = "0.13"
+tonic       = { version = "0.12", default-features = false, features = ["codegen", "prost", "tls"] }
+tonic-build = { version = "0.12", default-features = false, features = ["prost"] }
+protoc-bin-vendored = "3"
+
+# --- xml (BurntSushi-grade fast parsing via quick-xml borrowed mode) ---
+quick-xml   = { version = "0.36", features = ["serialize"] }
+memchr      = "2"
+
+# --- storage (Pavlo: real Postgres + PostGIS, sqlx compile-time SQL) ---
+sqlx        = { version = "0.8", default-features = false, features = ["runtime-tokio-rustls", "postgres", "macros", "uuid", "json"] }
+geo-types   = "0.7"
+geozero     = { version = "0.14", features = ["with-postgis-sqlx"] }
+
+# --- data structures (Bos / Weisman lock-free patterns) ---
+dashmap         = "6"
+parking_lot     = "0.12"
+rstar           = "0.12"
+sharded-slab    = "0.1"
+smallvec        = "1"
+ahash           = { version = "0.8", default-features = false, features = ["std"] }
+arc-swap        = "1"
+
+# --- observability (Cantrill / Weisman) ---
+tracing                       = "0.1"
+tracing-subscriber            = { version = "0.3", features = ["env-filter", "json"] }
+metrics                       = "0.23"
+metrics-exporter-prometheus   = "0.15"
+
+# --- errors (Tolnay convention: thiserror in lib, anyhow in bin) ---
+thiserror = "2"
+anyhow    = "1"
+
+# --- time (jiff per invariant D3) ---
+jiff = { version = "0.2", features = ["serde"] }
+
+# --- allocator (per invariant D7) ---
+mimalloc = { version = "0.1", default-features = false }
+
+# --- CLI (Hashimoto-style command UX) ---
+clap = { version = "4", features = ["derive"] }
+indicatif = "0.17"
+
+# --- serde for config + small JSON ---
+serde      = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# --- internal workspace crates ---
+tak-cot     = { path = "crates/tak-cot",     version = "0.0.1" }
+tak-proto   = { path = "crates/tak-proto",   version = "0.0.1" }
+tak-net     = { path = "crates/tak-net",     version = "0.0.1" }
+tak-bus     = { path = "crates/tak-bus",     version = "0.0.1" }
+tak-store   = { path = "crates/tak-store",   version = "0.0.1" }
+tak-mission = { path = "crates/tak-mission", version = "0.0.1" }
+tak-config  = { path = "crates/tak-config",  version = "0.0.1" }
+
+# --- dev / test (Hughes property tests, Greef DST, Beck TDD) ---
+proptest    = "1"
+criterion   = { version = "0.5", features = ["html_reports"] }
+loom        = "0.7"
+insta       = { version = "1",   features = ["yaml"] }
+dhat        = "0.3"
+testcontainers = "0.23"
+
+# ---------------------------------------------------------------------------
+# Lints — applied to crates that opt in via [lints] workspace = true.
+# See docs/invariants.md for the rationale of each.
+# ---------------------------------------------------------------------------
+[workspace.lints.rust]
+unsafe_code     = "warn"   # not "deny" — unsafe-auditor agent gates per-block
+missing_docs    = "warn"
+unreachable_pub = "warn"
+
+[workspace.lints.clippy]
+# D1: no panic paths in lib code.
+unwrap_used    = "deny"
+expect_used    = "deny"
+panic          = "deny"
+todo           = "deny"
+unimplemented  = "deny"
+dbg_macro      = "deny"
+mem_forget     = "deny"
+# D5: tracing only.
+print_stdout   = "deny"
+print_stderr   = "deny"
+# A1: every public type Debug.
+missing_debug_implementations = "warn"
+# Hygiene.
+needless_pass_by_value = "warn"
+str_to_string          = "warn"
+string_to_string       = "warn"
+inefficient_to_string  = "warn"
+large_types_passed_by_value = "warn"
+# H4: no implicit lossy casts on wire-format numeric paths.
+cast_lossless           = "warn"
+cast_possible_truncation = "warn"
+cast_possible_wrap      = "warn"
+cast_sign_loss          = "warn"
+# Pedantic style — warn so individual sites can opt out with a comment.
+must_use_candidate = "allow"
+module_name_repetitions = "allow"
+
+# ---------------------------------------------------------------------------
+# Profiles — see docs/architecture.md and .cargo/config.toml comments.
+# ---------------------------------------------------------------------------
+[profile.release]
+opt-level     = 3
+lto           = "fat"
+codegen-units = 1
+panic         = "abort"
+strip         = "symbols"
+debug         = "line-tables-only"
+
+[profile.bench]
+inherits = "release"
+debug    = true
+strip    = "none"
+
+[profile.dev]
+opt-level = 1   # 0 is too slow for the bus loops; 1 keeps debug info usable
+
+[profile.test]
+opt-level = 1

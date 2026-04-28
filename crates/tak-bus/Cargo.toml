@@ -1,0 +1,38 @@
+[package]
+name         = "tak-bus"
+description  = "Subscription registry and message fan-out — the firehose core."
+version      .workspace = true
+edition      .workspace = true
+rust-version .workspace = true
+license      .workspace = true
+authors      .workspace = true
+repository   .workspace = true
+
+[dependencies]
+tokio        .workspace = true
+bytes        .workspace = true
+dashmap      .workspace = true
+parking_lot  .workspace = true
+rstar        .workspace = true
+sharded-slab .workspace = true
+smallvec     .workspace = true
+ahash        .workspace = true
+arc-swap     .workspace = true
+tracing      .workspace = true
+metrics      .workspace = true
+thiserror    .workspace = true
+tak-cot      .workspace = true
+tak-proto    .workspace = true
+
+[dev-dependencies]
+proptest  .workspace = true
+criterion .workspace = true
+loom      .workspace = true
+dhat      .workspace = true
+
+[lints]
+workspace = true
+
+[[bench]]
+name    = "firehose"
+harness = false
