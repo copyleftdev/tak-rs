@@ -10,14 +10,15 @@ cd "$(git rev-parse --show-toplevel)"
 git config core.hooksPath .githooks
 chmod +x .githooks/* 2>/dev/null || true
 
+# Install cargo plugins (cargo-deny / cargo-nextest / cargo-machete) the
+# hooks need. Idempotent — skips ones already present.
+bash "$(dirname "${BASH_SOURCE[0]}")/install-deps.sh" --check || \
+    bash "$(dirname "${BASH_SOURCE[0]}")/install-deps.sh"
+
 cat <<'EOF'
 Git hooks installed.
   pre-commit  — fmt + clippy + deny + nextest (fast; runs on every commit)
   pre-push    — full gauntlet (slower; runs on every push)
-
-Required tools (install once):
-
-  cargo install --locked cargo-deny cargo-nextest cargo-machete
 
 Optional but recommended:
 

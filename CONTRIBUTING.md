@@ -6,10 +6,12 @@
 git clone git@github.com:copyleftdev/tak-rs.git
 cd tak-rs
 ./scripts/install-hooks.sh
-
-# install required dev tools
-cargo install --locked cargo-deny cargo-nextest cargo-machete
 ```
+
+That installs the git hooks AND offers to `cargo install` any missing
+dev tools (`cargo-deny`, `cargo-nextest`, `cargo-machete`). Run
+`scripts/install-deps.sh --yes` directly if you want a non-interactive
+install (e.g. in a fresh dev container).
 
 That's it. The pre-commit hook keeps the tree green; the pre-push hook
 runs the full gauntlet before anything hits remote.
