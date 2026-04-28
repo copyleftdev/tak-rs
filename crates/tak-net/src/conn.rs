@@ -212,6 +212,27 @@ impl ConnectionState<Authed> {
         &self.state.peer_certs
     }
 
+    /// The peer's leaf-cert Subject Distinguished Name (RFC 4514 form).
+    ///
+    /// Lazily parsed from the leaf cert; not cached. Callers that need
+    /// the DN repeatedly should hold the returned `String`. Returns an
+    /// error if the chain is empty or the leaf cert can't be parsed.
+    pub fn peer_dn(&self) -> Result<String, PeerCertError> {
+        peer_subject(self.peer_certs(), |s| Ok(s.to_string()))
+    }
+
+    /// The Organizational Unit (`OU`) RDN values from the peer leaf cert,
+    /// in the order they appear in the Subject DN. Useful for the upstream
+    /// "OU=group" convention some TAK deployments use as a poor man's
+    /// authorization model.
+    pub fn peer_ous(&self) -> Result<Vec<String>, PeerCertError> {
+        peer_subject(self.peer_certs(), |s| {
+            Ok(s.iter_organizational_unit()
+                .filter_map(|ou| ou.as_str().ok().map(String::from))
+                .collect())
+        })
+    }
+
     /// Consume the authed connection and produce a streaming one.
     /// Called once the bus has accepted a subscription for this client.
     #[must_use]
@@ -233,6 +254,47 @@ impl ConnectionState<Streaming> {
     pub fn peer_certs(&self) -> &[CertificateDer<'static>] {
         &self.state.peer_certs
     }
+
+    /// The peer's leaf-cert Subject DN. See [`ConnectionState::peer_dn`].
+    pub fn peer_dn(&self) -> Result<String, PeerCertError> {
+        peer_subject(self.peer_certs(), |s| Ok(s.to_string()))
+    }
+
+    /// The peer's Organizational Unit values. See [`ConnectionState::peer_ous`].
+    pub fn peer_ous(&self) -> Result<Vec<String>, PeerCertError> {
+        peer_subject(self.peer_certs(), |s| {
+            Ok(s.iter_organizational_unit()
+                .filter_map(|ou| ou.as_str().ok().map(String::from))
+                .collect())
+        })
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Cert-chain inspection helpers (issue #18).
+// ---------------------------------------------------------------------------
+
+/// Errors arising from inspecting a peer's certificate chain.
+#[derive(Debug, thiserror::Error)]
+pub enum PeerCertError {
+    /// No leaf cert was presented (empty chain). For TLS connections this
+    /// shouldn't happen — the verifier in [`super::tls::ServerConfigBuilder`]
+    /// requires a client cert; if you see this on TLS it's a bug.
+    #[error("peer-cert: chain is empty")]
+    EmptyChain,
+    /// The leaf cert failed to parse as X.509.
+    #[error("peer-cert: x509 parse: {0}")]
+    Parse(String),
+}
+
+fn peer_subject<T, F>(chain: &[CertificateDer<'static>], f: F) -> Result<T, PeerCertError>
+where
+    F: FnOnce(&x509_parser::x509::X509Name<'_>) -> Result<T, PeerCertError>,
+{
+    let leaf = chain.first().ok_or(PeerCertError::EmptyChain)?;
+    let (_, cert) = x509_parser::parse_x509_certificate(leaf)
+        .map_err(|e| PeerCertError::Parse(e.to_string()))?;
+    f(cert.subject())
 }
 
 #[cfg(test)]

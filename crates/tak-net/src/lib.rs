@@ -48,6 +48,8 @@ pub mod ports {
 }
 
 pub mod conn;
+pub mod listener;
+pub mod tasks;
 pub mod tls;
 
 /// Errors returned by `tak-net`.

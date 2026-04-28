@@ -9,11 +9,15 @@ authors      .workspace = true
 repository   .workspace = true
 
 [dependencies]
-rustls    .workspace = true
-thiserror .workspace = true
+rustls       .workspace = true
+tokio        .workspace = true
+tokio-rustls .workspace = true
+x509-parser  .workspace = true
+tracing      .workspace = true
+thiserror    .workspace = true
 
 [dev-dependencies]
-rcgen            .workspace = true
+rcgen        .workspace = true
 
 [lints]
 workspace = true
