@@ -12,12 +12,13 @@ repository   .workspace = true
 thiserror  .workspace = true
 prost      .workspace = true
 tak-proto  .workspace = true
+quick-xml  .workspace = true
+smallvec   .workspace = true
 
 [dev-dependencies]
 proptest   .workspace = true
 insta      .workspace = true
 criterion  .workspace = true
-quick-xml  .workspace = true   # parser-shootout winner; will move to [dependencies] when Codec::decode_xml lands
 
 [lints]
 workspace = true

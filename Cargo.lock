@@ -2144,6 +2144,7 @@ dependencies = [
  "proptest",
  "prost",
  "quick-xml",
+ "smallvec",
  "tak-proto",
  "thiserror",
 ]

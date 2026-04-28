@@ -70,10 +70,36 @@ pub enum Error {
         have: usize,
     },
 
+    /// XML parse failure (malformed, unexpected element, etc.).
+    #[error("xml: {0}")]
+    Xml(String),
+
+    /// XML attribute or text contained an entity reference (`&amp;`, `&#x...;`, etc.)
+    /// that would require allocating an owned string. The borrowed-mode decoder
+    /// rejects these to preserve invariant H2; CoT in practice never uses entities.
+    #[error("xml: entity decoding not supported in borrowed mode")]
+    EntityNotSupported,
+
+    /// Required event attribute missing.
+    #[error("xml: required event attribute `{0}` missing")]
+    MissingEventAttr(&'static str),
+
+    /// Required point attribute missing.
+    #[error("xml: required point attribute `{0}` missing")]
+    MissingPointAttr(&'static str),
+
     /// Underlying protobuf decode failure.
     #[error("protobuf decode: {0}")]
     Proto(#[from] prost::DecodeError),
 }
 
+impl From<core::str::Utf8Error> for Error {
+    fn from(err: core::str::Utf8Error) -> Self {
+        Self::Xml(err.to_string())
+    }
+}
+
 /// Convenience result type used across the codec.
 pub type Result<T> = core::result::Result<T, Error>;
+
+pub mod xml;
