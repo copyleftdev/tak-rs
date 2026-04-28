@@ -37,6 +37,7 @@ use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::mpsc;
 use tokio_rustls::TlsAcceptor;
+use tokio_util::sync::CancellationToken;
 use tracing::{debug, info, warn};
 
 use crate::pipeline;
@@ -84,6 +85,7 @@ const READ_BUF_CAPACITY: usize = 8192;
 /// Returns when `TcpListener::accept` returns an unrecoverable error
 /// (e.g. listener was closed). Per-connection errors are logged via
 /// `tracing` but never propagated up.
+#[allow(clippy::too_many_arguments)]
 pub async fn run(
     listener: TcpListener,
     bus: Arc<Bus>,
@@ -91,6 +93,7 @@ pub async fn run(
     persist: PersistMode,
     plugin_host: Option<Arc<PluginHost>>,
     replay_window: Option<std::time::Duration>,
+    cancel: CancellationToken,
 ) -> Result<()> {
     let connection_id = Arc::new(AtomicU64::new(0));
     info!(
@@ -102,12 +105,18 @@ pub async fn run(
     );
 
     loop {
-        let (sock, peer) = match listener.accept().await {
-            Ok(pair) => pair,
-            Err(e) => {
-                warn!(error = ?e, "firehose: accept error; continuing");
-                continue;
+        let (sock, peer) = tokio::select! {
+            _ = cancel.cancelled() => {
+                info!("firehose: shutdown requested; accept loop exiting");
+                return Ok(());
             }
+            res = listener.accept() => match res {
+                Ok(pair) => pair,
+                Err(e) => {
+                    warn!(error = ?e, "firehose: accept error; continuing");
+                    continue;
+                }
+            },
         };
         sock.set_nodelay(true).ok();
 
@@ -162,6 +171,7 @@ pub async fn run_tls(
     plugin_host: Option<Arc<PluginHost>>,
     replay_window: Option<std::time::Duration>,
     policy: Arc<crate::group_policy::GroupPolicy>,
+    cancel: CancellationToken,
 ) -> Result<()> {
     let connection_id = Arc::new(AtomicU64::new(0));
     info!(
@@ -175,13 +185,20 @@ pub async fn run_tls(
     loop {
         // accept_tls combines TCP accept + handshake. A handshake
         // failure already had a TCP connection: log + continue, never
-        // exit the loop.
-        let (authed, tls_stream) = match accept_tls(&listener, &acceptor).await {
-            Ok(pair) => pair,
-            Err(e) => {
-                warn!(error = ?e, "firehose-tls: accept/handshake failed; continuing");
-                continue;
+        // exit the loop. Cancel selects out of the wait so we don't
+        // hang on the next handshake during shutdown.
+        let (authed, tls_stream) = tokio::select! {
+            _ = cancel.cancelled() => {
+                info!("firehose-tls: shutdown requested; accept loop exiting");
+                return Ok(());
             }
+            res = accept_tls(&listener, &acceptor) => match res {
+                Ok(pair) => pair,
+                Err(e) => {
+                    warn!(error = ?e, "firehose-tls: accept/handshake failed; continuing");
+                    continue;
+                }
+            },
         };
 
         let id = connection_id.fetch_add(1, Ordering::Relaxed);
@@ -568,12 +585,23 @@ pub async fn run_plugin_replay(
     bus: Arc<Bus>,
     store: Store,
     persist: PersistMode,
+    cancel: CancellationToken,
 ) {
     let mut scratch = DispatchScratch::default();
     let mut accepted: u64 = 0;
     let mut rejected: u64 = 0;
     info!("plugin replay: drainer started");
-    while let Some(framed) = rx.recv().await {
+    loop {
+        let framed = tokio::select! {
+            _ = cancel.cancelled() => {
+                info!(accepted, rejected, "plugin replay: shutdown requested; drainer exiting");
+                return;
+            }
+            v = rx.recv() => match v {
+                Some(b) => b,
+                None => break, // host dropped
+            },
+        };
         let proto_payload = match framing::decode_stream(&framed[..]) {
             Ok((_, p)) => p,
             Err(e) => {

@@ -19,7 +19,7 @@ repository   = "https://github.com/codetestcode/tak-rs"
 [workspace.dependencies]
 # --- async runtime + middleware (Lerche stack) ---
 tokio       = { version = "1",   features = ["full"] }
-tokio-util  = { version = "0.7", features = ["codec"] }
+tokio-util  = { version = "0.7", features = ["codec", "rt"] }
 tokio-stream = "0.1"
 tower       = { version = "0.5", features = ["util"] }
 tower-http  = { version = "0.6", features = ["trace", "compression-gzip"] }

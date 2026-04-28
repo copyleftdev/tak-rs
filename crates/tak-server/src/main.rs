@@ -22,6 +22,7 @@
 )]
 
 use std::net::SocketAddr;
+use std::time::Duration;
 
 use anyhow::{Context, Result};
 use clap::Parser;
@@ -30,7 +31,15 @@ use tak_bus::Bus;
 use tak_server::firehose::{self, PersistMode};
 use tak_store::Store;
 use tokio::net::TcpListener;
+use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
+
+/// Maximum wall-clock seconds to wait after a shutdown signal
+/// before exiting forcibly. Long enough that an in-flight
+/// persistence batch + plugin shutdown() + bus dispatch can all
+/// drain on a normally-loaded server; short enough that a
+/// stuck task can't pin a process operator restart.
+const SHUTDOWN_DRAIN_TIMEOUT: Duration = Duration::from_secs(15);
 
 #[global_allocator]
 static GLOBAL: MiMalloc = MiMalloc;
@@ -257,6 +266,13 @@ async fn main() -> Result<()> {
     // tokio::spawn since the entire process exits if either dies, so
     // the supervision discipline N3 guards (silent task disappearance)
     // does not apply.
+    // Single CancellationToken fanned out to every long-running
+    // task. SIGTERM/SIGINT triggers `cancel.cancel()`, which
+    // wakes every `cancel.cancelled().await` arm in the codebase
+    // simultaneously. Tasks finish their in-flight work and
+    // return; main awaits all handles with a hard timeout.
+    let cancel = CancellationToken::new();
+
     #[allow(clippy::disallowed_methods)]
     let firehose_handle = {
         let bus = bus.clone();
@@ -265,6 +281,7 @@ async fn main() -> Result<()> {
         let use_compio = args.compio;
         let compio_threads = args.compio_threads;
         let plugin_host_for_firehose = plugin_host.clone();
+        let cancel_for_firehose = cancel.clone();
         if use_compio {
             // compio's blocking runtime needs a blocking thread of
             // its own — spawn_blocking parks on tokio's pool.
@@ -297,6 +314,7 @@ async fn main() -> Result<()> {
                     persist,
                     plugin_host_for_firehose,
                     replay_window,
+                    cancel_for_firehose,
                 )
                 .await
                 {
@@ -307,11 +325,21 @@ async fn main() -> Result<()> {
     };
 
     #[allow(clippy::disallowed_methods)]
-    let api_handle = tokio::spawn(async move {
-        if let Err(e) = axum::serve(api_listener, api_router).await {
-            warn!(error = ?e, "mission api exited");
-        }
-    });
+    let api_handle = {
+        let cancel = cancel.clone();
+        tokio::spawn(async move {
+            // axum's graceful-shutdown future returns when our
+            // cancel fires; in-flight requests drain naturally.
+            if let Err(e) = axum::serve(api_listener, api_router)
+                .with_graceful_shutdown(async move {
+                    cancel.cancelled().await;
+                })
+                .await
+            {
+                warn!(error = ?e, "mission api exited");
+            }
+        })
+    };
 
     // Plugin replay drainer: feeds `Action::Replace` frames from
     // the wasm worker pool back through the dispatch pipeline. The
@@ -320,8 +348,9 @@ async fn main() -> Result<()> {
     if let Some(rx) = plugin_outbound {
         let bus = bus.clone();
         let store = store.clone();
+        let cancel = cancel.clone();
         #[allow(clippy::disallowed_methods)]
-        tokio::spawn(firehose::run_plugin_replay(rx, bus, store, persist));
+        tokio::spawn(firehose::run_plugin_replay(rx, bus, store, persist, cancel));
     }
 
     // Subscription dropwatch: every 10 s, log the top-5 slow
@@ -371,6 +400,7 @@ async fn main() -> Result<()> {
             persist,
             replay_window,
             policy,
+            cancel.clone(),
         )
         .await
         {
@@ -412,32 +442,104 @@ async fn main() -> Result<()> {
         None
     };
 
-    // Either listener exiting takes the process down — they're co-equal
-    // and the operator should restart on either crash.
-    match (quic_handle, tls_handle) {
-        (Some(quic), Some(tls)) => tokio::select! {
-            res = firehose_handle => log_join("firehose", res),
-            res = api_handle => log_join("api", res),
-            res = quic => log_join("firehose-quic", res),
-            res = tls => log_join("firehose-tls", res),
-        },
-        (Some(quic), None) => tokio::select! {
-            res = firehose_handle => log_join("firehose", res),
-            res = api_handle => log_join("api", res),
-            res = quic => log_join("firehose-quic", res),
-        },
-        (None, Some(tls)) => tokio::select! {
-            res = firehose_handle => log_join("firehose", res),
-            res = api_handle => log_join("api", res),
-            res = tls => log_join("firehose-tls", res),
-        },
-        (None, None) => tokio::select! {
-            res = firehose_handle => log_join("firehose", res),
-            res = api_handle => log_join("api", res),
-        },
-    }
+    // Wait for EITHER a shutdown signal OR a top-level task
+    // crashing. On signal: cancel.cancel() fans out to every
+    // task's cancellation arm and they drain. On crash: the
+    // process exits anyway — co-equal pillars, operator
+    // restarts.
+    let signal_cancel = cancel.clone();
+    #[allow(clippy::disallowed_methods)]
+    let signal_task = tokio::spawn(async move {
+        wait_for_shutdown_signal().await;
+        info!("shutdown signal received; cancelling tasks");
+        signal_cancel.cancel();
+    });
 
+    // Watch the listener handles for a crash. Firing here
+    // also triggers shutdown so siblings drain gracefully.
+    let crash_cancel = cancel.clone();
+    #[allow(clippy::disallowed_methods)]
+    let crash_watcher = tokio::spawn(async move {
+        match (quic_handle, tls_handle) {
+            (Some(quic), Some(tls)) => tokio::select! {
+                res = firehose_handle => log_join("firehose", res),
+                res = api_handle => log_join("api", res),
+                res = quic => log_join("firehose-quic", res),
+                res = tls => log_join("firehose-tls", res),
+            },
+            (Some(quic), None) => tokio::select! {
+                res = firehose_handle => log_join("firehose", res),
+                res = api_handle => log_join("api", res),
+                res = quic => log_join("firehose-quic", res),
+            },
+            (None, Some(tls)) => tokio::select! {
+                res = firehose_handle => log_join("firehose", res),
+                res = api_handle => log_join("api", res),
+                res = tls => log_join("firehose-tls", res),
+            },
+            (None, None) => tokio::select! {
+                res = firehose_handle => log_join("firehose", res),
+                res = api_handle => log_join("api", res),
+            },
+        }
+        crash_cancel.cancel();
+    });
+
+    // Wait for the signal task. It returns when SIGTERM/SIGINT
+    // arrives and `cancel.cancel()` has been called. The
+    // crash_watcher will also cancel the token if any listener
+    // exits unexpectedly — both paths converge on the cancelled
+    // token, so awaiting either is sufficient.
+    let _ = signal_task.await;
+
+    // After cancel: drain persistence and exit. The crash
+    // watcher will return naturally too because cancel
+    // propagated to all listener loops.
+    info!(
+        "draining persistence (timeout {:?})",
+        SHUTDOWN_DRAIN_TIMEOUT
+    );
+    let drained = store.wait_for_drain(SHUTDOWN_DRAIN_TIMEOUT).await;
+    info!(
+        persisted = drained,
+        dropped = store.dropped_count(),
+        "persistence drained"
+    );
+
+    // Best-effort: give the crash watcher a moment to log its
+    // join error if anything was already exiting. If it doesn't
+    // come back inside the timeout we move on (we've cancelled
+    // it already by virtue of all listeners returning).
+    let _ = tokio::time::timeout(Duration::from_secs(2), crash_watcher).await;
+
+    info!("tak-server: shutdown clean");
     Ok(())
+}
+
+/// Wait for SIGTERM or SIGINT, whichever arrives first. SIGTERM
+/// is the systemd / orchestrator path; SIGINT is the developer's
+/// Ctrl-C.
+async fn wait_for_shutdown_signal() {
+    #[cfg(unix)]
+    {
+        use tokio::signal::unix::{SignalKind, signal};
+        let mut term = match signal(SignalKind::terminate()) {
+            Ok(s) => s,
+            Err(e) => {
+                warn!(error = ?e, "failed to register SIGTERM handler; falling back to SIGINT only");
+                let _ = tokio::signal::ctrl_c().await;
+                return;
+            }
+        };
+        tokio::select! {
+            _ = term.recv() => {}
+            _ = tokio::signal::ctrl_c() => {}
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = tokio::signal::ctrl_c().await;
+    }
 }
 
 /// Build the rustls server config from the supplied PEM files,
@@ -452,6 +554,7 @@ async fn boot_tls_firehose(
     persist: PersistMode,
     replay_window: Option<std::time::Duration>,
     policy: std::sync::Arc<tak_server::group_policy::GroupPolicy>,
+    cancel: CancellationToken,
 ) -> Result<tokio::task::JoinHandle<()>> {
     let cert = args
         .tls_cert
@@ -507,6 +610,7 @@ async fn boot_tls_firehose(
             None,
             replay_window,
             policy,
+            cancel,
         )
         .await
         {

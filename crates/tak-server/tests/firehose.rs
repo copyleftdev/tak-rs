@@ -79,6 +79,7 @@ async fn firehose_dispatches_and_persists_a_real_frame() {
             PersistMode::On,
             None,
             None,
+            tokio_util::sync::CancellationToken::new(),
         )
         .await;
     });

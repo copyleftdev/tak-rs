@@ -20,6 +20,7 @@ use testcontainers::core::{ContainerPort, IntoContainerPort, WaitFor};
 use testcontainers::runners::AsyncRunner;
 use testcontainers::{ContainerAsync, GenericImage, ImageExt};
 use tokio::net::TcpListener;
+use tokio_util::sync::CancellationToken;
 use tracing::warn;
 
 const PG_USER: &str = "tak";
@@ -112,6 +113,11 @@ impl TestServer {
                 PersistMode::On,
                 None,
                 replay_window,
+                // TestServer drops at end of scenario; the
+                // listener task gets aborted via JoinHandle.
+                // The CancellationToken here is unused but the
+                // run() signature requires it.
+                CancellationToken::new(),
             )
             .await
             {

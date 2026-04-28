@@ -26,6 +26,7 @@ tak-cot     .workspace = true
 tak-bus     .workspace = true
 tak-store   .workspace = true
 tak-server  .workspace = true
+tokio-util  .workspace = true
 
 # server.rs boots a real Postgres testcontainer at scenario start —
 # it's the conformance contract, not a test concern, so this is a

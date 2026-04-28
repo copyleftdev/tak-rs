@@ -37,6 +37,9 @@ tak-mission     .workspace = true
 tak-plugin-host .workspace = true
 tak-net         .workspace = true
 
+# CancellationToken for graceful shutdown fan-out to all tasks.
+tokio-util      .workspace = true
+
 # Group-policy module: TOML config + x509 cert subject parsing.
 serde       .workspace = true
 toml        .workspace = true
