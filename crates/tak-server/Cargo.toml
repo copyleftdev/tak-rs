@@ -36,6 +36,9 @@ tak-cot         .workspace = true
 tak-mission     .workspace = true
 tak-plugin-host .workspace = true
 
+metrics                     .workspace = true
+metrics-exporter-prometheus .workspace = true
+
 # QUIC firehose (quinn over rustls). Opt-in via `tak-server --quic`.
 quinn  .workspace = true
 rustls .workspace = true

@@ -91,6 +91,7 @@ pub fn dispatch_and_persist(
         callsign: None, // would require digging into cot.detail.contact; M3+ as needed
     };
     let dispatch_stats = bus.dispatch(&inbound, scratch);
+    record_dispatch_metrics(&dispatch_stats);
 
     // Persistence: build owned CotInsert and try_send. The .ok() collapses
     // the dropped error to a bool — Store internally has already incremented
@@ -154,5 +155,32 @@ pub fn dispatch_only(
         uid: Some(&cot.uid),
         callsign: None,
     };
-    Ok(bus.dispatch(&inbound, scratch))
+    let stats = bus.dispatch(&inbound, scratch);
+    record_dispatch_metrics(&stats);
+    Ok(stats)
+}
+
+/// Fold the per-call [`DispatchStats`] into the process-wide metric
+/// counters. Five `metrics::counter!()` increments per dispatch — each
+/// one is a static lookup + atomic add (a few nanoseconds), comfortably
+/// outside the H1 hot allocation budget. When no exporter is installed
+/// these are a no-op; with the Prometheus exporter wired (see
+/// `tak-server --listen-metrics`) they become scrapeable as
+/// `tak_bus_*_total`.
+fn record_dispatch_metrics(stats: &DispatchStats) {
+    if stats.delivered != 0 {
+        metrics::counter!("tak_bus.delivered").increment(u64::from(stats.delivered));
+    }
+    if stats.dropped_full != 0 {
+        metrics::counter!("tak_bus.dropped_full").increment(u64::from(stats.dropped_full));
+    }
+    if stats.dropped_closed != 0 {
+        metrics::counter!("tak_bus.dropped_closed").increment(u64::from(stats.dropped_closed));
+    }
+    if stats.filtered_groups != 0 {
+        metrics::counter!("tak_bus.filtered_groups").increment(u64::from(stats.filtered_groups));
+    }
+    if stats.filtered_geo != 0 {
+        metrics::counter!("tak_bus.filtered_geo").increment(u64::from(stats.filtered_geo));
+    }
 }

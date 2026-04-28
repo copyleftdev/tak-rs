@@ -50,6 +50,14 @@ struct Args {
     #[arg(long, env = "TAK_LISTEN_API", default_value = "0.0.0.0:8080")]
     listen_api: SocketAddr,
 
+    /// Prometheus metrics scrape endpoint. Exposes
+    /// `GET /metrics` with the standard text format. Counters
+    /// emitted by `tak-bus`, `tak-store`, `tak-net::auth`, and the
+    /// pipeline accumulate here. Empty string disables the
+    /// exporter.
+    #[arg(long, env = "TAK_LISTEN_METRICS", default_value = "0.0.0.0:9091")]
+    listen_metrics: String,
+
     /// Skip the persistence side-channel for every CoT event.
     /// Used for apples-to-apples bus dispatch benchmarks against an
     /// upstream Java server with persistence disabled or off-box.
@@ -119,6 +127,32 @@ async fn main() -> Result<()> {
     } else {
         PersistMode::On
     };
+
+    // Install the Prometheus exporter early so any metric emitted
+    // by Store::connect_and_migrate() is captured. Empty
+    // --listen-metrics disables the exporter entirely; the
+    // metrics::counter!() calls scattered through the codebase
+    // become silent no-ops. Failure to bind is logged but
+    // non-fatal — the server still serves data, you just can't
+    // scrape it.
+    if !args.listen_metrics.is_empty() {
+        match args.listen_metrics.parse::<SocketAddr>() {
+            Ok(addr) => match metrics_exporter_prometheus::PrometheusBuilder::new()
+                .with_http_listener(addr)
+                .install()
+            {
+                Ok(()) => info!(addr = %addr, "metrics: prometheus exporter listening"),
+                Err(e) => {
+                    warn!(error = ?e, addr = %addr, "metrics: exporter install failed; continuing")
+                }
+            },
+            Err(e) => {
+                warn!(error = ?e, value = %args.listen_metrics, "metrics: --listen-metrics parse failed; metrics disabled")
+            }
+        }
+    } else {
+        info!("metrics: --listen-metrics empty; exporter disabled");
+    }
 
     let store = Store::connect_and_migrate(&args.database_url)
         .await
