@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+# .githooks/pre-push — full gauntlet before pushing to remote.
+#
+# Always runs (regardless of staged files), but skips slow checks:
+#   - loom model checking is left to /check-invariants
+#   - dhat alloc tests are left to /check-invariants
+#   - cargo-fuzz is left to /fuzz-codec
+#
+# Includes:
+#   1. cargo fmt --check (whole workspace)
+#   2. cargo clippy --workspace --all-targets -- -D warnings
+#   3. cargo deny check (full)
+#   4. cargo machete (unused deps)
+#   5. cargo nextest run --workspace (or fallback)
+#   6. cargo doc --no-deps (catch broken doc links)
+#
+# Bypass with `git push --no-verify` only in emergencies.
+
+set -uo pipefail
+
+C=$'\033[1;36m'; G=$'\033[1;32m'; R=$'\033[1;31m'; Y=$'\033[1;33m'; N=$'\033[0m'
+say()  { printf '%s[pre-push]%s %s\n' "$C" "$N" "$*"; }
+ok()   { printf '  %s✓%s %s\n' "$G" "$N" "$*"; }
+warn() { printf '  %s!%s %s\n' "$Y" "$N" "$*"; }
+err()  { printf '  %s✗%s %s\n' "$R" "$N" "$*"; }
+
+start=$SECONDS
+fail=0
+
+run() {
+  local name=$1; shift
+  say "$name..."
+  if "$@" >/tmp/tak-prepush."$name" 2>&1; then
+    ok "$name"
+  else
+    err "$name"
+    tail -60 /tmp/tak-prepush."$name"
+    fail=1
+  fi
+}
+
+run fmt    cargo fmt --all -- --check
+run clippy cargo clippy --workspace --all-targets --quiet -- -D warnings
+
+if command -v cargo-deny >/dev/null 2>&1; then
+  run deny cargo deny check --hide-inclusion-graph
+else
+  warn "cargo-deny not installed — skipping"
+fi
+
+if command -v cargo-machete >/dev/null 2>&1; then
+  run machete cargo machete
+else
+  warn "cargo-machete not installed — skipping"
+fi
+
+if command -v cargo-nextest >/dev/null 2>&1; then
+  run nextest cargo nextest run --workspace --no-fail-fast --status-level=fail
+else
+  warn "cargo-nextest not installed — falling back to cargo test"
+  run test cargo test --workspace --no-fail-fast --quiet
+fi
+
+run doc cargo doc --workspace --no-deps --quiet
+
+elapsed=$(( SECONDS - start ))
+if [ "$fail" -ne 0 ]; then
+  printf '\n%spre-push FAILED in %ds.%s Use --no-verify only in emergencies.\n' "$R" "$elapsed" "$N"
+  exit 1
+fi
+printf '\n%spre-push OK in %ds%s\n' "$G" "$elapsed" "$N"
+exit 0

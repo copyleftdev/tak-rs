@@ -1,0 +1,98 @@
+#!/usr/bin/env bash
+# .githooks/pre-commit — fast quality gate before every commit.
+#
+# Runs (only if Rust/Cargo files staged):
+#   1. rustfmt --check on staged .rs files
+#   2. cargo clippy --workspace -- -D warnings (incremental cache → fast)
+#   3. cargo deny check (only if Cargo.toml/deny.toml staged)
+#   4. cargo nextest (or test) --workspace
+#
+# Bypass with `git commit --no-verify` only in genuine emergencies.
+# Install with `scripts/install-hooks.sh`.
+
+set -uo pipefail
+
+C=$'\033[1;36m'; G=$'\033[1;32m'; R=$'\033[1;31m'; Y=$'\033[1;33m'; N=$'\033[0m'
+say()  { printf '%s[pre-commit]%s %s\n' "$C" "$N" "$*"; }
+ok()   { printf '  %s✓%s %s\n' "$G" "$N" "$*"; }
+warn() { printf '  %s!%s %s\n' "$Y" "$N" "$*"; }
+err()  { printf '  %s✗%s %s\n' "$R" "$N" "$*"; }
+
+start=$SECONDS
+fail=0
+
+staged_rs=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.rs$' || true)
+staged_toml=$(git diff --cached --name-only --diff-filter=ACM | grep -E '(Cargo\.toml|deny\.toml|clippy\.toml)$' || true)
+
+if [ -z "$staged_rs" ] && [ -z "$staged_toml" ]; then
+  ok "no Rust/Cargo changes staged — skipping"
+  exit 0
+fi
+
+# 1. rustfmt — only on staged files (sub-second).
+if [ -n "$staged_rs" ]; then
+  say "rustfmt..."
+  if echo "$staged_rs" | xargs rustfmt --check --edition 2024 2>/tmp/tak-precommit.fmt; then
+    ok "rustfmt"
+  else
+    err "rustfmt — run 'cargo fmt' and re-stage"
+    cat /tmp/tak-precommit.fmt
+    fail=1
+  fi
+fi
+
+# 2. clippy --workspace -- -D warnings (incremental).
+say "clippy..."
+if cargo clippy --workspace --all-targets --quiet -- -D warnings >/tmp/tak-precommit.clippy 2>&1; then
+  ok "clippy"
+else
+  err "clippy"
+  tail -60 /tmp/tak-precommit.clippy
+  fail=1
+fi
+
+# 3. cargo-deny — only when policy-relevant files changed.
+if [ -n "$staged_toml" ]; then
+  if command -v cargo-deny >/dev/null 2>&1; then
+    say "cargo-deny..."
+    if cargo deny check --hide-inclusion-graph >/tmp/tak-precommit.deny 2>&1; then
+      ok "cargo-deny"
+    else
+      err "cargo-deny — dep policy violated"
+      tail -60 /tmp/tak-precommit.deny
+      fail=1
+    fi
+  else
+    warn "cargo-deny not installed — skipping (install: cargo install --locked cargo-deny)"
+  fi
+fi
+
+# 4. tests.
+if command -v cargo-nextest >/dev/null 2>&1; then
+  say "nextest..."
+  if cargo nextest run --workspace --no-fail-fast --status-level=fail >/tmp/tak-precommit.test 2>&1; then
+    ok "tests"
+  else
+    err "tests"
+    tail -60 /tmp/tak-precommit.test
+    fail=1
+  fi
+else
+  warn "cargo-nextest not installed — falling back to cargo test"
+  say "cargo test..."
+  if cargo test --workspace --no-fail-fast --quiet >/tmp/tak-precommit.test 2>&1; then
+    ok "tests"
+  else
+    err "tests"
+    tail -60 /tmp/tak-precommit.test
+    fail=1
+  fi
+fi
+
+elapsed=$(( SECONDS - start ))
+if [ "$fail" -ne 0 ]; then
+  printf '\n%spre-commit FAILED in %ds.%s Use --no-verify only in emergencies.\n' "$R" "$elapsed" "$N"
+  exit 1
+fi
+printf '\n%spre-commit OK in %ds%s\n' "$G" "$elapsed" "$N"
+exit 0
