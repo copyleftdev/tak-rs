@@ -12,12 +12,17 @@ repository   .workspace = true
 axum        .workspace = true
 tower-http  .workspace = true
 thiserror   .workspace = true
+tracing     .workspace = true
+serde       .workspace = true
+sqlx        .workspace = true
 tak-store   .workspace = true
 
 [dev-dependencies]
 tokio  = { workspace = true, features = ["rt-multi-thread", "macros"] }
 tower  .workspace = true
 http-body-util = "0.1"
+testcontainers .workspace = true
+serde_json     .workspace = true
 
 [lints]
 workspace = true

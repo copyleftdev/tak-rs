@@ -3342,11 +3342,16 @@ version = "0.0.1"
 dependencies = [
  "axum",
  "http-body-util",
+ "serde",
+ "serde_json",
+ "sqlx",
  "tak-store",
+ "testcontainers",
  "thiserror 2.0.18",
  "tokio",
  "tower",
  "tower-http",
+ "tracing",
 ]
 
 [[package]]
