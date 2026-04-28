@@ -1,0 +1,26 @@
+# Sample tak-rs plugin: round-trips every CoT event back through
+# the bus via Action::Replace. Lets the firehose's plugin replay
+# drainer be exercised end-to-end without needing prost in wasm.
+#
+# Build:
+#   cd examples/plugins/echo-replace
+#   cargo build --release --target wasm32-wasip2
+#   cp target/wasm32-wasip2/release/echo_replace.wasm <plugin-dir>/
+#
+# Then run tak-server with --plugin-dir <plugin-dir>. Each event
+# the firehose ingests will appear twice on subscriber sockets:
+# once from primary dispatch, once from the plugin replay path.
+[package]
+name        = "echo-replace"
+description = "Sample plugin: re-dispatch every CoT event via Action::Replace."
+version     = "0.0.1"
+edition     = "2024"
+license     = "MIT OR Apache-2.0"
+
+[workspace]
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+tak-plugin-api = { path = "../../../crates/tak-plugin-api" }

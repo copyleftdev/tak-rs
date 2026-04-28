@@ -173,6 +173,70 @@ async fn tight_cpu_budget_eventually_traps_and_unloads_worker() {
     );
 }
 
+fn echo_replace_wasm_path() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../examples/plugins/echo-replace/target/wasm32-wasip2/release/echo_replace.wasm")
+}
+
+#[tokio::test]
+async fn replace_action_round_trips_to_outbound_receiver() {
+    // Loads the echo-replace plugin (which returns
+    // Action::Replace(event.wire_bytes) for every event), publishes
+    // a frame, and asserts the same bytes pop out of the outbound
+    // receiver. End-to-end proof that the host's worker → outbound
+    // channel wiring is live.
+    let wasm = echo_replace_wasm_path();
+    if !wasm.exists() {
+        eprintln!(
+            "skipping: echo-replace wasm not built — run `cargo build --release --target wasm32-wasip2` in examples/plugins/echo-replace"
+        );
+        return;
+    }
+
+    let dir = tempfile::tempdir().expect("tempdir");
+    std::fs::copy(&wasm, dir.path().join("echo_replace.wasm")).expect("copy wasm");
+    // No toml — defaults are fine.
+
+    let cfg = PluginHostConfig {
+        plugin_dir: dir.path().to_path_buf(),
+        queue_capacity: 16,
+        ..Default::default()
+    };
+    let mut host = PluginHost::new(cfg).await.expect("host comes up");
+    assert_eq!(host.len(), 1);
+    let mut outbound = host.take_outbound().expect("first take_outbound is Some");
+    assert!(
+        host.take_outbound().is_none(),
+        "second take_outbound should yield None"
+    );
+
+    // Distinctive bytes so the assertion is unambiguous.
+    let payload = Bytes::from_static(&[0xBF, 0x05, 0xDE, 0xAD, 0xBE, 0xEF, 0x42]);
+    let event = PluginEvent {
+        payload: payload.clone(),
+        cot_type: "a-f-G-U-C".to_owned(),
+        uid: "TEST-REPLACE".to_owned(),
+        callsign: Some("R".to_owned()),
+        lat: 35.0,
+        lon: -80.0,
+        hae: 0.0,
+        send_time_ms: 0,
+        sender_groups_low: 0,
+    };
+    assert_eq!(host.publish(event), 1);
+
+    let received = tokio::time::timeout(Duration::from_secs(2), outbound.recv())
+        .await
+        .expect("outbound receiver fired within 2 s")
+        .expect("channel still open");
+    assert_eq!(
+        &received[..],
+        &payload[..],
+        "echo-replace should round-trip the same wire bytes"
+    );
+    assert_eq!(host.outbound_dropped_count(), 0);
+}
+
 #[tokio::test]
 async fn disabled_plugin_is_skipped() {
     let wasm = example_wasm_path();
