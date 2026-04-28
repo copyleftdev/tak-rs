@@ -1,0 +1,28 @@
+[package]
+name         = "tak-bus-vopr"
+description  = "Deterministic verification harness for tak-bus — drives millions of operations against a bus + abstract model + edge-case generator and asserts agreement."
+version      .workspace = true
+edition      .workspace = true
+rust-version .workspace = true
+license      .workspace = true
+authors      .workspace = true
+repository   .workspace = true
+
+[[bin]]
+name = "tak-bus-vopr"
+path = "src/main.rs"
+
+[dependencies]
+tak-bus    .workspace = true
+bytes      .workspace = true
+clap = { workspace = true, features = ["env"] }
+anyhow     .workspace = true
+tokio      .workspace = true     # mpsc::Receiver::try_recv only; no runtime
+# Seedable PRNG for deterministic op streams. ChaCha8 because we
+# need bit-perfect reproducibility from a u64 seed; rand's default
+# ThreadRng is non-seedable.
+rand        = { version = "0.8", default-features = false, features = ["std", "std_rng"] }
+rand_chacha = "0.3"
+
+[lints]
+workspace = true
