@@ -1,0 +1,10 @@
+{
+  "loadgen": {"tag":"java-baseline","target":"127.0.0.1:8088","driver":"tokio","connections":2000,"rate":100,"duration":20,"mix":"Realistic","elapsed_s":20.047655987,"sent_total":3971363,"bytes_total":1478731630,"msg_per_s":198096.12667811388,"mb_per_s":70.34380364981419,"pli":2779927,"chat":794288,"detail":397148,"errors":0},
+  "system": {
+    "target_pid": "2682118",
+    "samples": 18,
+    "peak_cpu_pct": 0,
+    "max_rss_mb": 1
+  },
+  "captured_at": "2026-04-28T16-20-12Z"
+}

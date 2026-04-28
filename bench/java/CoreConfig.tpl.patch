@@ -1,0 +1,11 @@
+--- a/templates/CoreConfig.tpl
++++ b/templates/CoreConfig.tpl
+@@ -3,6 +3,7 @@
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="/opt/tak/CoreConfig.xsd">
+     <network multicastTTL="5">
+         <input _name="stdssl" protocol="tls" port="8089" coreVersion="2"/>
++        <input _name="streamtcp" protocol="stcp" port="8088" auth="anonymous" coreVersion="2"/>
+
+         <!-- default web connectors
+         <connector port="8443" _name="https"/>

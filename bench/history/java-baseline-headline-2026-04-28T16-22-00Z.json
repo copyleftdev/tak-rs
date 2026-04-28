@@ -1,0 +1,30 @@
+{
+  "loadgen": {
+    "tag": "java-baseline-headline",
+    "target": "127.0.0.1:8088",
+    "driver": "tokio",
+    "connections": 5000,
+    "rate": 200,
+    "duration": 30,
+    "mix": "Realistic",
+    "elapsed_s": 30.095404172,
+    "sent_total": 25681865,
+    "bytes_total": 9561526276,
+    "msg_per_s": 853348.4000820882,
+    "mb_per_s": 302.9891867525871,
+    "pli": 17977019,
+    "chat": 5136754,
+    "detail": 2568092,
+    "errors": 0
+  },
+  "system": {
+    "target_pid": "messaging-container-pid",
+    "samples": "via docker-stats (mid-run)",
+    "peak_cpu_pct": 4677,
+    "max_rss_mb": 45239,
+    "note": "messaging container only; total across all 5 takserver containers adds another ~57% CPU + ~3.4 GB",
+    "all_containers_cpu_pct": 4735,
+    "all_containers_rss_gb": 47.8
+  },
+  "captured_at": "2026-04-28T16-22-00Z"
+}

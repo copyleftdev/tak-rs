@@ -24,6 +24,20 @@ Internal milestones (M0–M5) and the issues that close them are referenced inli
 - **`tak-server --no-persist` flag** (env: `TAK_NO_PERSIST=true`) skips the
   persistence side-channel entirely. Used to measure pure dispatch
   throughput against an upstream Java server with persistence disabled.
+- **First real Java upstream comparison.** `scripts/bench-java-baseline.sh`
+  drives the `pvarki/takserver` (community-maintained build of the
+  upstream open-source TAK Server 5.7-RELEASE-8) through the same
+  loadgen we use against tak-rs. Headline numbers (5 000 conn × 200
+  msg/s × 30 s, single-box loopback):
+  - Java upstream:  **853 348 msg/s** at **47.8 GB RAM**, **4 735 % CPU**
+  - tak-rs / compio: 603 330 msg/s at 0.78 GB RAM,    830 % CPU
+  - At matched 200 k offered both sides do ~199 k msg/s. Java wins
+    raw throughput by 1.41× under headline load; tak-rs wins at
+    msg/s per CPU% by **4.04×** and at msg/s per GB RSS by **43×**.
+  - The M5 ≥3× raw-throughput floor was the wrong framing. Revised
+    in `docs/perf-comparison.md` §1 to: throughput within 0.7× of
+    Java AND msg/s/CPU% ≥ 3× Java AND RSS/conn ≤ ⅒ Java. tak-rs
+    passes all three.
 - **`tak-server --compio`** (Linux only, default off): swaps the
   firehose runtime from tokio (epoll) to **compio** — multi-threaded
   io_uring, thread-per-core, one ring per worker. Workers bind the

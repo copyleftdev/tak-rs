@@ -1,75 +1,79 @@
 # bench/java/ — Upstream Java TAK Server bench harness
 
-This directory holds everything needed to spin up the upstream open-source TAK Server (`.scratch/takserver-java/`) under loadgen and capture a Java baseline number for `docs/perf-comparison.md`.
+Drives the upstream open-source TAK Server through the same loadgen we use against tak-rs and captures throughput numbers for `docs/perf-comparison.md` §3.1.
 
-The harness is driven end-to-end by **`scripts/bench-java-baseline.sh`**.
+## What runs
 
-## What's here
+Pulled from Docker Hub: **`pvarki/takserver:5.7-RELEASE-8-...`** — a community-maintained image that wraps the upstream `5.7-RELEASE-8` source tree (matching what we recon under `.scratch/takserver-java/`). Pvarki's image bundles the multi-process orchestration, Flyway schema migrations, cert generation, and Spring Boot configurations that the from-scratch gradle build path requires us to reassemble by hand. Their `docker-compose.yml` runs **6 containers**:
 
-| File | Purpose |
-|------|---------|
-| `Dockerfile` | Wraps `tak/` (assembled at bench time from gradle outputs) + `eclipse-temurin:17-jdk-jammy` |
-| `docker-compose.yml` | takserver + postgis-15 sidecar, ports 8087/8088/8443 published on loopback |
-| `CoreConfig.xml` | Plain TCP `stcp` on 8088 + plain `tcp` on 8087, anonymous auth, no TLS, no LDAP |
-| `TAKIgniteConfig.xml` | Stock Ignite settings for single-node messaging (copied from upstream example) |
-| `UserAuthenticationFile.xml` | Empty (anonymous-only — server consults this file but never matches a user) |
-| `docker_entrypoint.sh` | Stock upstream entry script (cert generation + 4-process supervisor) |
+- `takdb` (postgis-15-3.3)
+- `takserver_initialization` (one-shot: cert + schema setup)
+- `takserver_config` — Ignite config service
+- `takserver_messaging` — the firehose / `<input>` listener (the bench target)
+- `takserver_api` — Spring REST / web UI
+- `takserver_pluginmanager`
+- `takserver_retention`
 
-`tak/` is **not committed**. It gets assembled by `scripts/bench-java-baseline.sh` step (2) from the gradle build outputs under `.scratch/takserver-java/src/`.
+We do **two** small modifications to the pvarki setup to make it match what `taktool loadgen` sends:
 
-## Procedure
+1. `templates/CoreConfig.tpl` gets a second `<input>` element on plain `stcp:8088` (alongside their default `tls:8089`). See `CoreConfig.tpl.patch` for the exact diff.
+2. `docker-compose.yml` mounts the patched template into each takserver_* service via a volume bind.
+
+## Drive it
+
+The orchestrator is `scripts/bench-java-baseline.sh`:
 
 ```bash
-# 1. Make sure .scratch/takserver-java/ is populated.
-# Already there per CLAUDE.md.
+# Default: 2000 conn × 100 msg/s × 20 s
+scripts/bench-java-baseline.sh
 
-# 2. Run the harness. First invocation triggers the gradle build
-#    inside an eclipse-temurin:17-jdk-jammy container (~10-30 min on a
-#    cold gradle cache; subsequent runs hit the cached
-#    `gradle-cache` named volume).
-scripts/bench-java-baseline.sh \
-    --connections 2000 --rate 100 --duration 20
-
-# 3. Output lands at bench/history/java-baseline-<UTC>.json
-#    (same JSON shape as the rust runs).
+# Match the Rust headline (1 M offered)
+scripts/bench-java-baseline.sh --connections 5000 --rate 200 --duration 30
 ```
 
-## Why this is in the repo
+Output lands in `bench/history/java-baseline-*.json`. The script:
 
-We don't redistribute upstream binaries — every invocation pulls + builds from `.scratch/takserver-java/` (which is itself a clone the operator does once). The Dockerfile / config / scripts here are purely orchestration glue and small enough to commit.
+1. Clones pvarki/docker-atak-server to `.scratch/pvarki-tak/docker-atak-server` if not present
+2. Patches `templates/CoreConfig.tpl` with our `stcp:8088` input
+3. Patches `docker-compose.yml` to bind-mount the template
+4. `docker pull pvarki/takserver:...` (~1.6 GB)
+5. `docker compose up -d`, waits for `:8088` to bind + messaging service to log "Started TAK Server messaging Microservice"
+6. Runs `scripts/bench-baseline.sh` against `127.0.0.1:8088` with `--tag java-baseline`
+7. `docker compose down -v`
 
-## What this does NOT measure
+## Captured baseline (2026-04-28)
 
-- **No mTLS handshake on 8089.** TAK production uses mTLS; the bench uses plain `stcp` on 8088 to match what the Rust firehose currently exposes. Both sides therefore measure raw dispatch + persistence; both skip the same TLS overhead.
-- **No federation, no plugin manager, no API/web UI in the loop.** The bench only exercises the messaging service (the firehose path). The API service is launched alongside (Spring Boot expects it to bind 8443) but receives zero traffic.
-- **JIT warm-up** — `bench-java-baseline.sh` sleeps 10 s after the listener comes up before launching loadgen. For a strict "fair fight" against tak-rs's already-warm `--release` binary, run with `--duration 60` and discard the first 10 s of metrics manually.
+`bench/history/java-baseline-headline-2026-04-28T16-22-00Z.json`:
 
-## When the upstream build breaks
+| Configuration | Sustained | RSS (peak) | CPU (peak) | Errors |
+|---|---|---|---|---|
+| 5 000 conn × 200 msg/s × 30 s | **853 348 msg/s** | 47.8 GB across all 5 containers (44 GB on messaging alone) | **4 735 % across all** (4 677 % on messaging alone) | 0 |
 
-The upstream gradle build is fragile (~50 subprojects, deprecated dependencies, occasional Java version friction). Failure modes we've hit:
+That's ~17 % more throughput than tak-rs's compio path (603 k msg/s) — but at **~6 × the CPU** and **~50 × the RAM**. tak-rs's win is efficiency, not raw throughput, when the upstream is given enough hardware to throw at the problem. See `docs/perf-comparison.md` §3.1.a for the full comparison.
 
-- Missing `patch` / `git` / `rpm` in the builder. Already worked-around in `bench-java-baseline.sh` step 1.
-- Java version mismatch — upstream README says "Requires Java 17". The orchestrator pins `eclipse-temurin:17-jdk-jammy` so host JDK doesn't matter.
-- npm tooling missing — some subprojects have a JS web UI built via `npm run`. The script currently builds `:takserver-core` only, which doesn't pull the UI in. If you ever need the full distribution, install Node 18 in the builder.
+## Why pvarki's image instead of building from source
 
-## After the run
+We tried building from `.scratch/takserver-java/` directly via gradle. It works in pieces but the upstream multi-process startup has hard dependencies (Ignite cluster topology, RSA keystore for the JWT bean, federation manager initialization order) that the official `docker_entrypoint.sh` handles via a precise launch sequence we don't fully reproduce. The pvarki image bakes those in. From-source build is ~20-30 min on a cold gradle cache and adds little for the bench compared to a 2-minute image pull, so the orchestrator now uses pvarki by default.
 
-`bench/history/java-baseline-*.json` matches the schema of the Rust runs. Drop the numbers into the Java row of `docs/perf-comparison.md` §3.1.a and re-run the comparison verdict via `scripts/bench-comparison.sh`.
+If you need to bench against a from-source build (e.g. for a tak-rs vs internal-fork comparison), the gradle invocation that succeeded was:
 
-## Current status (2026-04-28)
+```bash
+docker run --rm \
+    -v "$PWD/.scratch/takserver-java:/build" \
+    -v gradle-cache-host:/.gradle \
+    -w /build/src \
+    --network host \
+    eclipse-temurin:17-jdk-jammy \
+    bash -c '
+        apt-get update -qq && apt-get install -y -qq patch git rpm
+        useradd -u 1000 -m -s /bin/bash builder
+        chown -R builder:builder /build /tmp/home
+        runuser -u builder -- ./gradlew --no-daemon -x test \
+            :takserver-tool-ui:bundle \
+            :takserver-core:bootJar \
+            :takserver-core:bootWar \
+            :takserver-schemamanager:shadowJar
+    '
+```
 
-This harness **builds and runs the upstream messaging service end-to-end** through the following sequence:
-
-1. ✅ **Gradle build** — `:takserver-core:bootJar` produces a 218 MB Spring Boot fat jar containing the messaging + config + API profiles.
-2. ✅ **Cert generation** — `start.sh` creates a self-signed RSA keystore + JKS truststore at container start so the JWT encoder bean can instantiate (without it, messaging NPEs on startup).
-3. ✅ **Multi-profile launch** — `start.sh` spawns config + messaging in parallel; they self-coordinate via Ignite cluster discovery (sequential startup deadlocks because config doesn't fully come up until a peer joins).
-4. ✅ **CoreConfig minimal** — federation disabled, persistence disabled, plain `stcp` on 8088 with `coreVersion="2"`.
-5. ✅ **Listener binds** — ports 8087, 8088, 8443 are visible via `ss -ltn` ~60 s after container start.
-6. ⚠️ **Frame handling blocks at the first message.** The Java `stcp` input accepts a TCP connection, reads the first framed `TakMessage`, then closes the connection (`BrokenPipe`). Investigation of `takserver-messaging.log` shows `DistributedFederationManager.init` raises an `IgniteServiceProcessor` NPE during Ignite service deployment — even with `<federation enableFederation="false"/>`, the federation manager's deployment task still runs and fails on a null `SSLConfig.getInstance()` reference. This appears to be a known interaction in the upstream codebase and likely needs either a working Ignite cluster topology with the `api` profile also running, or a code-level workaround we'd have to patch in.
-
-The harness as committed gets *very* close — what's blocking is upstream-Java initialization quirks, not anything on the tak-rs side. A TAK Server admin who knows the official deployment recipe (CoreConfig.xsd + production cert provisioning + Ignite tuning) could likely close the gap by:
-
-- Running the full upstream `docker_entrypoint.sh` (which also launches the API + plugin manager profiles, plus runs `SchemaManager` migrations) instead of our minimal `start.sh`,
-- Or pulling a pre-built `takserver-full` image from the operator's internal registry instead of building from source.
-
-Until then the Java row in `docs/perf-comparison.md` §3.1.a stays TBD. The Rust numbers in that table are real and reproducible; the comparison verdict is just waiting on a working Java target.
+— produces the bootJar/bootWar/SchemaManager fat jars under `.scratch/takserver-java/src/*/build/libs/`. The remaining work to make those into a standalone runtime is the same multi-process orchestration that pvarki already solved.
