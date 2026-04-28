@@ -3341,6 +3341,7 @@ name = "tak-mission"
 version = "0.0.1"
 dependencies = [
  "axum",
+ "futures",
  "http-body-util",
  "parking_lot",
  "serde",
@@ -3350,6 +3351,7 @@ dependencies = [
  "testcontainers",
  "thiserror 2.0.18",
  "tokio",
+ "tokio-stream",
  "tower",
  "tower-http",
  "tracing",
@@ -3633,6 +3635,7 @@ dependencies = [
  "futures-core",
  "pin-project-lite",
  "tokio",
+ "tokio-util",
 ]
 
 [[package]]

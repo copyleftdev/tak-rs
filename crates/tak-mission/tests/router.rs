@@ -1,17 +1,25 @@
-//! Issue #32 + #33 acceptance tests.
+//! Issue #32 + #33 + #34 + #35 acceptance tests.
 //!
 //! - The router-level tests (no state) drive the Router via
 //!   `tower::ServiceExt::oneshot` so we don't need to bind a TCP socket.
 //! - The mission tests use a real Postgres+PostGIS testcontainer and
 //!   exercise the actual SQL queries.
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+//! - The SSE tests poll the streaming response body in a tokio task.
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::disallowed_methods
+)]
 
+use std::sync::Arc;
 use std::time::Duration;
 
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
+use futures::StreamExt;
 use http_body_util::BodyExt;
-use tak_mission::{Mission, MissionRouter, SubscriptionResponse};
+use tak_mission::{ChangeBroker, Mission, MissionChange, MissionRouter, SubscriptionResponse};
 use tak_store::Store;
 use testcontainers::core::{ContainerPort, IntoContainerPort, WaitFor};
 use testcontainers::runners::AsyncRunner;
@@ -259,6 +267,205 @@ async fn subscription_tokens_are_unique() {
     let s2: SubscriptionResponse = serde_json::from_slice(&body2).unwrap();
 
     assert_ne!(s1.token, s2.token, "two POSTs must yield distinct tokens");
+}
+
+// ===========================================================================
+// #35 — GET /missions/:name/changes (SSE)
+// ===========================================================================
+
+/// Build a router that shares a `ChangeBroker` with the test, so the
+/// test can publish events directly. Mirrors how a future mutation
+/// endpoint will publish from inside the handler.
+async fn router_with_broker(store: Store) -> (axum::Router, Arc<ChangeBroker>) {
+    sqlx::query(
+        "INSERT INTO mission (name, description, tool, create_time) VALUES \
+            ('alpha', 'first mission', 'public', now())",
+    )
+    .execute(store.pool())
+    .await
+    .expect("seed alpha");
+    let broker = ChangeBroker::new();
+    let router = MissionRouter::build_with_broker(store, broker.clone());
+    (router, broker)
+}
+
+/// Read SSE frames from the body until `needle` appears in the
+/// accumulated buffer, the stream ends, or `timeout` expires. Returns
+/// whatever was collected.
+async fn read_until(body: axum::body::Body, needle: &str, timeout: Duration) -> String {
+    let mut stream = body.into_data_stream();
+    let mut buf = String::new();
+    let deadline = tokio::time::Instant::now() + timeout;
+    loop {
+        let remaining = deadline
+            .checked_duration_since(tokio::time::Instant::now())
+            .unwrap_or_default();
+        let next = tokio::time::timeout(remaining, stream.next()).await;
+        match next {
+            Ok(Some(Ok(chunk))) => {
+                buf.push_str(&String::from_utf8_lossy(&chunk));
+                if buf.contains(needle) {
+                    return buf;
+                }
+            }
+            // End-of-stream, error, or timeout — return what we have.
+            _ => return buf,
+        }
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "needs Docker"]
+async fn sse_stream_delivers_published_change() {
+    let (_c, url) = start_postgis().await;
+    let store = Store::connect_and_migrate(&url).await.unwrap();
+    let (app, broker) = router_with_broker(store).await;
+
+    // POST /subscription → token
+    let sub_req = Request::builder()
+        .method("POST")
+        .uri("/missions/alpha/subscription")
+        .body(Body::empty())
+        .unwrap();
+    let sub_resp = app.clone().oneshot(sub_req).await.unwrap();
+    let body = sub_resp.into_body().collect().await.unwrap().to_bytes();
+    let sub: SubscriptionResponse = serde_json::from_slice(&body).unwrap();
+
+    // GET /changes — start the SSE stream
+    let req = Request::builder()
+        .uri(format!("/missions/alpha/changes?token={}", sub.token))
+        .body(Body::empty())
+        .unwrap();
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(
+        resp.headers()
+            .get("content-type")
+            .map(|v| v.to_str().unwrap_or_default()),
+        Some("text/event-stream"),
+        "SSE responses must declare text/event-stream"
+    );
+
+    // Spawn a reader before publishing so we don't miss the event.
+    let reader = tokio::spawn(async move {
+        read_until(resp.into_body(), "ANDROID-test", Duration::from_secs(5)).await
+    });
+
+    // Give the stream a moment to attach to the broker.
+    tokio::time::sleep(Duration::from_millis(50)).await;
+
+    let n = broker.publish(MissionChange {
+        id: 42,
+        mission_name: "alpha".to_owned(),
+        change_type: 0,
+        ts_ms: 1_700_000_000_000,
+        uid: Some("ANDROID-test".to_owned()),
+        hash: None,
+    });
+    assert_eq!(n, 1, "publish should reach the one connected subscriber");
+
+    let buf = reader.await.unwrap();
+    assert!(
+        buf.contains("event: mission-change"),
+        "stream missed the published event; got: {buf:?}"
+    );
+    assert!(buf.contains("id: 42"), "missing id frame; got: {buf:?}");
+    assert!(
+        buf.contains("ANDROID-test"),
+        "payload UID not in stream; got: {buf:?}"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "needs Docker"]
+async fn sse_backfills_via_last_event_id() {
+    let (_c, url) = start_postgis().await;
+    let store = Store::connect_and_migrate(&url).await.unwrap();
+    let (app, _broker) = router_with_broker(store.clone()).await;
+
+    // Seed two changes that happened "while the client was offline".
+    sqlx::query(
+        "INSERT INTO mission_change (id, mission_name, ts, change_type) VALUES \
+            (100, 'alpha', now(), 1), \
+            (101, 'alpha', now(), 2)",
+    )
+    .execute(store.pool())
+    .await
+    .unwrap();
+
+    // POST /subscription → token
+    let sub_req = Request::builder()
+        .method("POST")
+        .uri("/missions/alpha/subscription")
+        .body(Body::empty())
+        .unwrap();
+    let sub_resp = app.clone().oneshot(sub_req).await.unwrap();
+    let body = sub_resp.into_body().collect().await.unwrap().to_bytes();
+    let sub: SubscriptionResponse = serde_json::from_slice(&body).unwrap();
+
+    // Reconnect with Last-Event-Id: 99 (i.e. saw nothing yet) → expect
+    // both 100 and 101 to backfill.
+    let req = Request::builder()
+        .uri(format!("/missions/alpha/changes?token={}", sub.token))
+        .header("last-event-id", "99")
+        .body(Body::empty())
+        .unwrap();
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let buf = read_until(resp.into_body(), "id: 101", Duration::from_secs(5)).await;
+    assert!(buf.contains("id: 100"), "missing backfill 100: {buf:?}");
+    assert!(buf.contains("id: 101"), "missing backfill 101: {buf:?}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "needs Docker"]
+async fn sse_rejects_bogus_token() {
+    let (_c, url) = start_postgis().await;
+    let store = Store::connect_and_migrate(&url).await.unwrap();
+    let (app, _broker) = router_with_broker(store).await;
+
+    let req = Request::builder()
+        .uri("/missions/alpha/changes?token=sub-deadbeefdeadbeef")
+        .body(Body::empty())
+        .unwrap();
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "needs Docker"]
+async fn sse_rejects_token_from_different_mission() {
+    let (_c, url) = start_postgis().await;
+    let store = Store::connect_and_migrate(&url).await.unwrap();
+    sqlx::query(
+        "INSERT INTO mission (name, description, tool, create_time) VALUES \
+            ('alpha', 'first', 'public', now()), \
+            ('bravo', 'second', 'public', now())",
+    )
+    .execute(store.pool())
+    .await
+    .unwrap();
+    let broker = ChangeBroker::new();
+    let app = MissionRouter::build_with_broker(store, broker);
+
+    // Token issued for alpha…
+    let sub_req = Request::builder()
+        .method("POST")
+        .uri("/missions/alpha/subscription")
+        .body(Body::empty())
+        .unwrap();
+    let sub_resp = app.clone().oneshot(sub_req).await.unwrap();
+    let body = sub_resp.into_body().collect().await.unwrap().to_bytes();
+    let sub: SubscriptionResponse = serde_json::from_slice(&body).unwrap();
+
+    // …used against bravo → 403.
+    let req = Request::builder()
+        .uri(format!("/missions/bravo/changes?token={}", sub.token))
+        .body(Body::empty())
+        .unwrap();
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::FORBIDDEN);
 }
 
 #[tokio::test(flavor = "multi_thread")]

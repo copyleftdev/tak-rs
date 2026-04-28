@@ -14,16 +14,19 @@ tower-http  .workspace = true
 thiserror   .workspace = true
 tracing     .workspace = true
 serde       .workspace = true
+serde_json  .workspace = true
 sqlx        .workspace = true
 parking_lot .workspace = true
+tokio       = { workspace = true, features = ["sync"] }
+tokio-stream = { workspace = true, features = ["sync"] }
+futures     .workspace = true
 tak-store   .workspace = true
 
 [dev-dependencies]
-tokio  = { workspace = true, features = ["rt-multi-thread", "macros"] }
+tokio  = { workspace = true, features = ["rt-multi-thread", "macros", "time"] }
 tower  .workspace = true
 http-body-util = "0.1"
 testcontainers .workspace = true
-serde_json     .workspace = true
 
 [lints]
 workspace = true
