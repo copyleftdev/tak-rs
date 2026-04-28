@@ -13,6 +13,7 @@
 //! If this fails, ATAK-side icon state will lose attributes.
 
 use std::future::Future;
+use std::net::SocketAddr;
 use std::pin::Pin;
 use std::time::Duration;
 
@@ -22,8 +23,8 @@ use tak_cot::framing;
 use tak_cot::proto::view_to_takmessage;
 use tak_cot::xml::decode_xml;
 
+use crate::AtakMockClient;
 use crate::scenario::{Outcome, Scenario};
-use crate::{AtakMockClient, TestServer};
 
 const FIXTURE_PLI: &str = include_str!("../../../tak-cot/tests/fixtures/01_pli.xml");
 
@@ -42,7 +43,7 @@ impl Scenario for PliDispatchByteIdentity {
 
     fn run<'a>(
         &'a self,
-        server: &'a TestServer,
+        firehose: SocketAddr,
     ) -> Pin<Box<dyn Future<Output = Outcome> + Send + 'a>> {
         Box::pin(async move {
             // Bake the fixture into a Protocol-v1 frame the way
@@ -66,7 +67,7 @@ impl Scenario for PliDispatchByteIdentity {
 
             // Subscriber B connects FIRST so it's registered
             // before A's frame arrives.
-            let mut client_b = match AtakMockClient::connect(server.firehose_addr).await {
+            let mut client_b = match AtakMockClient::connect(firehose).await {
                 Ok(c) => c,
                 Err(e) => return Outcome::Fail(format!("client B connect: {e:?}")),
             };
@@ -76,7 +77,7 @@ impl Scenario for PliDispatchByteIdentity {
             tokio::time::sleep(Duration::from_millis(50)).await;
 
             // Publisher A connects + sends.
-            let mut client_a = match AtakMockClient::connect(server.firehose_addr).await {
+            let mut client_a = match AtakMockClient::connect(firehose).await {
                 Ok(c) => c,
                 Err(e) => return Outcome::Fail(format!("client A connect: {e:?}")),
             };

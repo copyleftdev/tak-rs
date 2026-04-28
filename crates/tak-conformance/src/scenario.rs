@@ -3,18 +3,25 @@
 //! A scenario encapsulates one wire-protocol contract that the
 //! server must satisfy to be ATAK-compatible. Each scenario:
 //!
-//! 1. Receives a started [`crate::TestServer`].
+//! 1. Receives a firehose [`std::net::SocketAddr`] — the only
+//!    coupling point to the system under test.
 //! 2. Drives one or more [`crate::AtakMockClient`]s through a
 //!    deterministic sequence of sends/receives.
 //! 3. Asserts an observable invariant — typically byte-level
-//!    identity of the fan-out frame, or persistence row equality.
+//!    identity of the fan-out frame.
 //! 4. Returns an [`Outcome`].
+//!
+//! The address-only contract is deliberate: the same trait
+//! implementation runs against an in-process [`crate::TestServer`]
+//! (for CI) **and** a remote TAK server (for the Android agent
+//! and ATAK-vs-Java side-by-side diff). Scenarios that need
+//! richer access (e.g. SQL row inspection on `cot_router`) will
+//! need a separate trait and an in-process backend.
 
 use std::fmt;
 use std::future::Future;
+use std::net::SocketAddr;
 use std::pin::Pin;
-
-use crate::TestServer;
 
 /// Result of running a [`Scenario`].
 #[derive(Debug)]
@@ -50,9 +57,13 @@ pub trait Scenario: Send + Sync {
     /// One-line description of what the scenario asserts.
     fn description(&self) -> &'static str;
 
-    /// Run the scenario against the supplied test server.
+    /// Run the scenario against a TAK server's firehose listener.
+    ///
+    /// Same trait implementation runs against the in-process
+    /// [`crate::TestServer`] (for CI) and a remote target (for the
+    /// Android agent or side-by-side diff harness).
     fn run<'a>(
         &'a self,
-        server: &'a TestServer,
+        firehose: SocketAddr,
     ) -> Pin<Box<dyn Future<Output = Outcome> + Send + 'a>>;
 }

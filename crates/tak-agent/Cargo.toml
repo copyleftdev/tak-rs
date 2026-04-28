@@ -1,0 +1,29 @@
+[package]
+name         = "tak-agent"
+description  = "Headless TAK Protocol agent — drives conformance scenarios against a remote server. Cross-compiles to Android."
+version      .workspace = true
+edition      .workspace = true
+rust-version .workspace = true
+license      .workspace = true
+authors      .workspace = true
+repository   .workspace = true
+
+# Single binary, no library surface yet. Public API can come later
+# if a host-side test harness wants to invoke scenarios in-process.
+[[bin]]
+name = "tak-agent"
+path = "src/main.rs"
+
+[dependencies]
+tokio       .workspace = true
+clap = { workspace = true, features = ["env"] }
+anyhow      .workspace = true
+tracing-subscriber .workspace = true
+serde       .workspace = true
+serde_json  .workspace = true
+
+tak-conformance .workspace = true
+
+# Binary opts out of unwrap/print bans inline via #![allow(...)] in main.rs.
+[lints]
+workspace = true

@@ -35,7 +35,7 @@ async fn conformance_suite() {
     let mut report: Vec<(String, String, String)> = Vec::with_capacity(scenarios.len());
 
     for sc in &scenarios {
-        let outcome = sc.run(&server).await;
+        let outcome = sc.run(server.firehose_addr).await;
         if matches!(outcome, Outcome::Fail(_)) {
             any_failed = true;
         }

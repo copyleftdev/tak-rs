@@ -4393,6 +4393,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "tak-agent"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "clap",
+ "serde",
+ "serde_json",
+ "tak-conformance",
+ "tokio",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "tak-bus"
 version = "0.0.1"
 dependencies = [
@@ -4423,7 +4436,6 @@ dependencies = [
  "prost",
  "tak-bus",
  "tak-cot",
- "tak-proto",
  "tak-server",
  "tak-store",
  "testcontainers",

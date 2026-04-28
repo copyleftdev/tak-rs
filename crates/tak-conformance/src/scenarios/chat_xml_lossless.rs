@@ -25,9 +25,9 @@
 //! semantics.
 
 use std::future::Future;
+use std::net::SocketAddr;
 use std::pin::Pin;
 
-use crate::TestServer;
 use crate::scenario::{Outcome, Scenario};
 
 /// Stub scenario for the chat-detail lossless contract. See module
@@ -46,7 +46,7 @@ impl Scenario for ChatXmlLossless {
 
     fn run<'a>(
         &'a self,
-        _server: &'a TestServer,
+        _firehose: SocketAddr,
     ) -> Pin<Box<dyn Future<Output = Outcome> + Send + 'a>> {
         Box::pin(async move {
             Outcome::Skipped(
