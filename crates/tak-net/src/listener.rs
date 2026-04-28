@@ -66,6 +66,37 @@ pub fn acceptor(config: ServerConfig) -> TlsAcceptor {
     TlsAcceptor::from(Arc::new(config))
 }
 
+/// Accept one plain TCP connection on `listener`.
+///
+/// Plain TCP is the legacy CoT transport — port **8087** for
+/// "open-squirt-close" (client opens TCP, sends one XML event, closes)
+/// and port **8088** for streaming TCP. Both share this accept primitive;
+/// the difference is purely in how the caller reads from the returned
+/// `TcpStream`:
+///
+/// - **8087 caller:** `read_to_end` and decode the buffer as one CoT XML
+///   event (or one TAK v1 frame).
+/// - **8088 caller:** loop `read` + framing decode until the peer closes.
+///
+/// Plain TCP carries no cryptographic peer identity — the returned
+/// connection lands in [`Authed`](ConnectionState) with an empty
+/// `peer_certs` slice. `tak-auth` (M2) is responsible for granting (or
+/// denying) plain-TCP connections appropriate group membership; in
+/// production, plain TCP should be off entirely or restricted to a
+/// trusted internal network.
+///
+/// # Errors
+///
+/// - I/O errors propagate from `TcpListener::accept`. Caller should log
+///   and retry.
+pub async fn accept_plain(
+    listener: &TcpListener,
+) -> Result<(ConnectionState<Authed>, TcpStream), AcceptError> {
+    let (tcp, peer_addr) = listener.accept().await.map_err(AcceptError::Accept)?;
+    let conn = ConnectionState::<Handshaking>::new(peer_addr).promote_to_authed(Vec::new());
+    Ok((conn, tcp))
+}
+
 /// Errors raised by [`accept_tls`].
 #[derive(Debug, thiserror::Error)]
 pub enum AcceptError {
@@ -254,5 +285,67 @@ mod tests {
         // OU extraction.
         let ous = authed.peer_ous().expect("peer_ous parses");
         assert_eq!(ous, vec!["Cyan".to_owned()], "got {ous:?}");
+    }
+
+    #[tokio::test]
+    async fn plain_tcp_accept_open_squirt_close_pattern() {
+        // Simulates a CoT 8087 client: open TCP, write one event, close.
+        // Server reads until EOF and gets the full payload.
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
+        let bound = listener.local_addr().unwrap();
+
+        let server = tokio::spawn(async move {
+            let (conn, mut tcp) = accept_plain(&listener).await.unwrap();
+            let mut buf = Vec::new();
+            tcp.read_to_end(&mut buf).await.unwrap();
+            (conn, buf)
+        });
+
+        let mut client = TcpStream::connect(bound).await.unwrap();
+        client.write_all(b"<event uid=\"x\"/>").await.unwrap();
+        client.shutdown().await.unwrap();
+        drop(client);
+
+        let (authed, payload) = tokio::time::timeout(Duration::from_secs(2), server)
+            .await
+            .expect("server timed out")
+            .unwrap();
+        assert_eq!(payload, b"<event uid=\"x\"/>");
+        assert!(
+            authed.peer_certs().is_empty(),
+            "plain TCP must carry no certs"
+        );
+        assert!(
+            authed.peer_dn().is_err(),
+            "DN call on empty chain returns Err"
+        );
+    }
+
+    #[tokio::test]
+    async fn plain_tcp_accept_streaming_bidirectional() {
+        // Simulates a CoT 8088 client: open TCP, exchange bytes both
+        // directions, neither side closes immediately.
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
+        let bound = listener.local_addr().unwrap();
+
+        let server = tokio::spawn(async move {
+            let (_, mut tcp) = accept_plain(&listener).await.unwrap();
+            let mut buf = [0u8; 4];
+            tcp.read_exact(&mut buf).await.unwrap();
+            tcp.write_all(b"PONG").await.unwrap();
+            buf
+        });
+
+        let mut client = TcpStream::connect(bound).await.unwrap();
+        client.write_all(b"PING").await.unwrap();
+        let mut reply = [0u8; 4];
+        client.read_exact(&mut reply).await.unwrap();
+        assert_eq!(&reply, b"PONG");
+
+        let recv = tokio::time::timeout(Duration::from_secs(2), server)
+            .await
+            .expect("server timed out")
+            .unwrap();
+        assert_eq!(&recv, b"PING");
     }
 }
