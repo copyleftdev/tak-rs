@@ -445,11 +445,12 @@ Each has a reason; flagging them here so they don't get "fixed" later.
 
 These need a decision before code lands; flagging now.
 
-1. **rustls or openssl for TLS?** rustls (tokio-rustls) is the obvious
-   default. But: TAK clients pin to TLS 1.2 + specific cipher suites in
-   older deployments. Need to verify rustls 0.23 supports the suites the
-   reference clients negotiate. *Action: pcap a real ATAK handshake against
-   takserver, check ClientHello ciphers.*
+1. ~~**rustls or openssl for TLS?**~~ **Resolved 2026-04-28.** Decision:
+   rustls 0.23 + aws_lc_rs + `tls12` feature. The Java server pins
+   exactly three RFC 6460 ("Suite B") cipher suites
+   (`SSLConfig.java:404-408`); rustls supports a strict superset. See
+   `docs/decisions/0002-tls-ciphers.md`. Confirmation pcap pending real
+   ATAK device — capture method in `scripts/capture-atak-handshake.sh`.
 
 2. **QUIC: quinn or s2n-quic?** quinn is more mature; s2n is what AWS uses.
    Either works; defer until we actually build the QUIC listener.
