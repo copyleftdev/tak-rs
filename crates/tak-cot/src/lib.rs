@@ -88,9 +88,20 @@ pub enum Error {
     #[error("xml: required point attribute `{0}` missing")]
     MissingPointAttr(&'static str),
 
+    /// Attribute or text value contained an XML special character (`<`, `>`,
+    /// `&`, `"`, `'`) that would require entity encoding to round-trip safely.
+    /// CoT in production never emits these, so we hard-fail rather than
+    /// silently allocating to escape.
+    #[error("xml: value contains XML-special character `{0}` — entity escaping not supported")]
+    SpecialCharInValue(char),
+
     /// Underlying protobuf decode failure.
     #[error("protobuf decode: {0}")]
     Proto(#[from] prost::DecodeError),
+
+    /// Underlying I/O failure during encode.
+    #[error("io: {0}")]
+    Io(#[from] std::io::Error),
 }
 
 impl From<core::str::Utf8Error> for Error {

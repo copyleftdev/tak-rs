@@ -16,11 +16,17 @@
 //!
 //! Entity-decoded attribute values are rejected with
 //! [`Error::EntityNotSupported`]. CoT in production never uses entities.
+//!
+//! Encoder side: [`encode_xml`] writes a [`CotEventView`] back out, attributes
+//! emitted in canonical order. Round-trip via decode→encode→decode produces
+//! views that compare equal modulo whitespace, satisfying the C1 invariant
+//! when paired with the lossless `detail.raw` slice.
 
 use crate::{Error, Result};
 use quick_xml::events::Event;
 use quick_xml::reader::Reader;
 use smallvec::SmallVec;
+use std::io;
 
 /// A borrowed view over a parsed CoT event.
 ///
@@ -334,6 +340,123 @@ where
 
         f(key, value)?;
     }
+    Ok(())
+}
+
+// ===========================================================================
+// Encoder — symmetric inverse of decode_xml.
+// ===========================================================================
+
+/// Encode a CoT view back to XML, writing into `out`.
+///
+/// Output layout:
+///
+/// ```text
+/// <?xml version="1.0" encoding="UTF-8"?>
+/// <event {canonical attrs}>
+///   <point {lat, lon, hae, ce, le}/>
+///   <detail>
+/// {detail.raw verbatim}
+///   </detail>
+/// </event>
+/// ```
+///
+/// Attributes are emitted in a stable canonical order so two encoders running
+/// on the same view produce byte-identical output. CoT itself doesn't specify
+/// attribute order, so this is a tak-rs-internal convention.
+///
+/// # Errors
+///
+/// - [`Error::SpecialCharInValue`] if any attribute value contains an XML
+///   special character (`<`, `>`, `&`, `"`, `'`). The borrowed-mode decoder
+///   refuses entity-encoded input symmetrically, so neither end allocates.
+/// - [`Error::Io`] if the underlying writer fails.
+/// - [`Error::MissingEventAttr`] if a required `<event>` field is empty —
+///   the encoder refuses to emit invalid CoT.
+pub fn encode_xml<W: io::Write>(view: &CotEventView<'_>, out: &mut W) -> Result<()> {
+    if view.event.uid.is_empty() {
+        return Err(Error::MissingEventAttr("uid"));
+    }
+    if view.event.kind.is_empty() {
+        return Err(Error::MissingEventAttr("type"));
+    }
+
+    out.write_all(b"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")?;
+
+    // <event ...>
+    out.write_all(b"<event")?;
+    if let Some(v) = view.event.version {
+        write_attr(out, "version", v)?;
+    }
+    write_attr(out, "uid", view.event.uid)?;
+    write_attr(out, "type", view.event.kind)?;
+    write_attr(out, "time", view.event.time)?;
+    write_attr(out, "start", view.event.start)?;
+    write_attr(out, "stale", view.event.stale)?;
+    write_attr(out, "how", view.event.how)?;
+    if let Some(v) = view.event.access {
+        write_attr(out, "access", v)?;
+    }
+    if let Some(v) = view.event.qos {
+        write_attr(out, "qos", v)?;
+    }
+    if let Some(v) = view.event.opex {
+        write_attr(out, "opex", v)?;
+    }
+    if let Some(v) = view.event.caveat {
+        write_attr(out, "caveat", v)?;
+    }
+    if let Some(v) = view.event.releaseable_to {
+        write_attr(out, "releaseableTo", v)?;
+    }
+    out.write_all(b">\n")?;
+
+    // <point .../>
+    if let Some(p) = &view.point {
+        out.write_all(b"  <point")?;
+        write_attr(out, "lat", p.lat)?;
+        write_attr(out, "lon", p.lon)?;
+        write_attr(out, "hae", p.hae)?;
+        write_attr(out, "ce", p.ce)?;
+        write_attr(out, "le", p.le)?;
+        out.write_all(b"/>\n")?;
+    }
+
+    // <detail>{raw}</detail>
+    out.write_all(b"  <detail>\n")?;
+    if !view.detail.raw.is_empty() {
+        out.write_all(view.detail.raw.as_bytes())?;
+        out.write_all(b"\n")?;
+    }
+    out.write_all(b"  </detail>\n")?;
+
+    // </event>
+    out.write_all(b"</event>\n")?;
+    Ok(())
+}
+
+/// Convenience: encode into a freshly allocated `String`.
+///
+/// Allocates; prefer [`encode_xml`] with a reused buffer on the hot path.
+pub fn encode_xml_to_string(view: &CotEventView<'_>) -> Result<String> {
+    let mut buf = Vec::with_capacity(view.detail.raw.len().saturating_add(512));
+    encode_xml(view, &mut buf)?;
+    String::from_utf8(buf).map_err(|e| Error::Xml(e.to_string()))
+}
+
+#[inline]
+fn write_attr<W: io::Write>(out: &mut W, key: &str, value: &str) -> Result<()> {
+    if let Some(c) = value
+        .chars()
+        .find(|c| matches!(c, '<' | '>' | '&' | '"' | '\''))
+    {
+        return Err(Error::SpecialCharInValue(c));
+    }
+    out.write_all(b" ")?;
+    out.write_all(key.as_bytes())?;
+    out.write_all(b"=\"")?;
+    out.write_all(value.as_bytes())?;
+    out.write_all(b"\"")?;
     Ok(())
 }
 
