@@ -11,6 +11,10 @@ Internal milestones (M0–M5) and the issues that close them are referenced inli
 
 ### Added
 
+- **`xtask` automation crate.** New `crates/xtask` accessible via `cargo xt <verb>`.
+  First verb: `proto-diff`, which compares vendored `.proto` files against
+  `.scratch/takserver-java` and reports byte-equality + missing-on-each-side. Used
+  before `/proto-sync` to confirm what's about to change. (#5)
 - **M5 — Performance benches.** `taktool loadgen` synthesises the locked 70/20/10 PLI / chat / detail mix
   from canonical fixtures and drives any TAK listener over plain TCP. `scripts/bench-baseline.sh`
   captures throughput + system metrics as JSON; `scripts/bench-comparison.sh` runs Rust + Java
