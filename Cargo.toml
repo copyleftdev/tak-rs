@@ -58,7 +58,7 @@ memchr      = "2"
 # (3.3-4.1× slower; see docs/decisions/0001-codec-parser.md). Banned in deny.toml.
 
 # --- storage (Pavlo: real Postgres + PostGIS, sqlx compile-time SQL) ---
-sqlx        = { version = "0.8", default-features = false, features = ["runtime-tokio-rustls", "postgres", "macros", "uuid", "json"] }
+sqlx        = { version = "0.8", default-features = false, features = ["runtime-tokio-rustls", "postgres", "macros", "migrate", "uuid", "json"] }
 geo-types   = "0.7"
 geozero     = { version = "0.14", features = ["with-postgis-sqlx"] }
 

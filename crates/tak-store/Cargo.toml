@@ -12,5 +12,9 @@ repository   .workspace = true
 sqlx       .workspace = true
 thiserror  .workspace = true
 
+[dev-dependencies]
+tokio          = { workspace = true, features = ["rt-multi-thread", "macros", "test-util", "time"] }
+testcontainers .workspace = true
+
 [lints]
 workspace = true
