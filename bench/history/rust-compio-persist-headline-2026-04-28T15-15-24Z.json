@@ -1,0 +1,10 @@
+{
+  "loadgen": {"tag":"rust-compio-persist-headline","target":"127.0.0.1:19788","driver":"tokio","connections":5000,"rate":200,"duration":30,"mix":"Realistic","elapsed_s":30.020102978,"sent_total":18112021,"bytes_total":6743174549,"msg_per_s":603329.7425153157,"mb_per_s":214.21619982910633,"pli":12678521,"chat":3622203,"detail":1811297,"errors":0},
+  "system": {
+    "target_pid": "2497327",
+    "samples": 27,
+    "peak_cpu_pct": 830,
+    "max_rss_mb": 797
+  },
+  "captured_at": "2026-04-28T15-15-24Z"
+}

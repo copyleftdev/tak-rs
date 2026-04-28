@@ -29,13 +29,31 @@
 //! whichever worker thread publishes; `tokio::sync::mpsc::Sender::try_send`
 //! is also runtime-agnostic.
 //!
+//! # Cross-runtime persistence bridge
+//!
+//! The `Store` writer task (sqlx, batched INSERTs) lives on the
+//! tokio runtime — sqlx requires it. But `Store::try_insert_event`
+//! is a sync call that just `try_send`s onto a `tokio::sync::mpsc`
+//! — no await, no runtime context, no syscall. We invoke it
+//! directly from the compio worker thread via
+//! [`pipeline::dispatch_and_persist`], which crosses the
+//! runtime boundary safely:
+//!
+//! ```text
+//!   compio worker thread             tokio runtime
+//!   ──────────────────────           ─────────────
+//!   bus.dispatch       ┐             ┌ writer task
+//!                      ├── Bytes ──→ │   recv().await
+//!                      │             │   sqlx insert batch
+//!   try_send(CotInsert)┘             └
+//! ```
+//!
+//! `mpsc::Sender::try_send` is lock-free + atomic; polling a
+//! `mpsc::Receiver::recv()` future from tokio uses standard
+//! `Waker`s and does not care which thread/runtime woke it.
+//!
 //! # What's currently NOT supported
 //!
-//! - **Persistence side-channel.** The `dispatch_and_persist` path
-//!   pushes `CotInsert` onto a tokio mpsc drained by a tokio task
-//!   spawned at `Store::connect_and_migrate` time. The compio
-//!   firehose calls [`pipeline::dispatch_only`] (no persistence).
-//!   Wiring the cross-runtime bridge is post-spike.
 //! - **mTLS.** Plain TCP only for v0.
 
 use std::net::SocketAddr;
@@ -55,6 +73,7 @@ use tak_store::Store;
 use tokio::sync::mpsc;
 use tracing::{debug, info, warn};
 
+use crate::firehose::PersistMode;
 use crate::pipeline;
 
 const ALL_GROUPS: GroupBitvector = GroupBitvector([!0u64; 4]);
@@ -66,25 +85,27 @@ const LISTEN_BACKLOG: i32 = 1024;
 /// `SO_REUSEPORT`. Blocks the calling thread until every worker
 /// thread exits (which they don't, in normal operation — the loop is
 /// infinite).
-///
-/// `_store` is accepted for API parity with [`crate::firehose::run`]
-/// but is currently ignored — the compio path always runs in the
-/// equivalent of `--no-persist` mode pending a cross-runtime bridge
-/// to the tokio Store writer.
 #[allow(clippy::needless_pass_by_value)] // by-value matches firehose::run signature
-pub fn run(addr: SocketAddr, bus: Arc<Bus>, _store: Store, threads: usize) -> Result<()> {
+pub fn run(
+    addr: SocketAddr,
+    bus: Arc<Bus>,
+    store: Store,
+    threads: usize,
+    persist: PersistMode,
+) -> Result<()> {
     if threads == 0 {
         anyhow::bail!("compio firehose: --compio-threads must be > 0");
     }
-    info!(addr = %addr, threads, "firehose-compio: spawning workers");
+    info!(addr = %addr, threads, ?persist, "firehose-compio: spawning workers");
 
     let mut handles = Vec::with_capacity(threads);
     for i in 0..threads {
         let bus = bus.clone();
+        let store = store.clone();
         let h = std::thread::Builder::new()
             .name(format!("compio-fh-{i}"))
             .spawn(move || {
-                if let Err(e) = worker_main(i, addr, bus) {
+                if let Err(e) = worker_main(i, addr, bus, store, persist) {
                     warn!(worker = i, error = ?e, "compio worker exited");
                 }
             })
@@ -97,7 +118,13 @@ pub fn run(addr: SocketAddr, bus: Arc<Bus>, _store: Store, threads: usize) -> Re
     Ok(())
 }
 
-fn worker_main(id: usize, addr: SocketAddr, bus: Arc<Bus>) -> Result<()> {
+fn worker_main(
+    id: usize,
+    addr: SocketAddr,
+    bus: Arc<Bus>,
+    store: Store,
+    persist: PersistMode,
+) -> Result<()> {
     let runtime = compio::runtime::Runtime::new()
         .with_context(|| format!("worker {id}: build compio runtime"))?;
     runtime.block_on(async move {
@@ -121,11 +148,12 @@ fn worker_main(id: usize, addr: SocketAddr, bus: Arc<Bus>) -> Result<()> {
             sock.set_nodelay(true).ok();
             let cid = conn_id.fetch_add(1, Ordering::Relaxed);
             let bus_for_task = bus.clone();
+            let store_for_task = store.clone();
             // Spawn on the SAME (this worker's) runtime — TcpStream
             // is !Send and stays here for its entire lifetime.
             compio::runtime::spawn(async move {
                 debug!(conn = cid, peer = %peer, "firehose-compio: accepted");
-                handle_connection(cid, sock, bus_for_task).await;
+                handle_connection(cid, sock, bus_for_task, store_for_task, persist).await;
                 debug!(conn = cid, "firehose-compio: closed");
             })
             .detach();
@@ -151,7 +179,13 @@ fn bind_reuseport(addr: SocketAddr) -> Result<TcpListener> {
     Ok(listener)
 }
 
-async fn handle_connection(id: u64, sock: TcpStream, bus: Arc<Bus>) {
+async fn handle_connection(
+    id: u64,
+    sock: TcpStream,
+    bus: Arc<Bus>,
+    store: Store,
+    persist: PersistMode,
+) {
     let filter = Filter {
         group_mask: ALL_GROUPS,
         ..Filter::default()
@@ -162,7 +196,7 @@ async fn handle_connection(id: u64, sock: TcpStream, bus: Arc<Bus>) {
 
     let writer = compio::runtime::spawn(write_loop(id, write_half, rx));
 
-    if let Err(e) = read_loop(id, read_half, &bus).await {
+    if let Err(e) = read_loop(id, read_half, &bus, &store, persist).await {
         debug!(conn = id, error = ?e, "firehose-compio: reader exit");
     }
 
@@ -174,6 +208,8 @@ async fn read_loop(
     id: u64,
     mut read: compio::net::OwnedReadHalf<TcpStream>,
     bus: &Arc<Bus>,
+    store: &Store,
+    persist: PersistMode,
 ) -> Result<()> {
     let mut acc = BytesMut::with_capacity(READ_SLOT_CAP * 2);
     let mut slot: Vec<u8> = Vec::with_capacity(READ_SLOT_CAP);
@@ -208,7 +244,30 @@ async fn read_loop(
             };
             match TakMessage::decode(proto_payload) {
                 Ok(msg) => {
-                    let _ = pipeline::dispatch_only(bus, &msg, ALL_GROUPS, framed, &mut scratch);
+                    match persist {
+                        PersistMode::On => {
+                            // Cross-runtime: try_insert_event is sync
+                            // + runtime-agnostic; the Store writer
+                            // task on tokio drains the mpsc.
+                            let _ = pipeline::dispatch_and_persist(
+                                bus,
+                                store,
+                                &msg,
+                                ALL_GROUPS,
+                                framed,
+                                &mut scratch,
+                            );
+                        }
+                        PersistMode::Off => {
+                            let _ = pipeline::dispatch_only(
+                                bus,
+                                &msg,
+                                ALL_GROUPS,
+                                framed,
+                                &mut scratch,
+                            );
+                        }
+                    }
                     decoded += 1;
                 }
                 Err(e) => {

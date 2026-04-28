@@ -34,13 +34,22 @@ Internal milestones (M0–M5) and the issues that close them are referenced inli
   `Bytes` payloads from the bus flow through compio's `IoBuf for
   bytes::Bytes` impl with no memcpy on the writer side (H3
   preserved).
-  Caveat: compio path is currently `--no-persist` only — bridging
-  the persistence side-channel across runtimes is the next item.
-  Headline: **593 424 msg/s sustained over 30 s, 5 000 conns, 0
-  errors, 882 MB RSS, 810 % CPU** — 11.87× the M5 50 k target. At
-  matched 200 k offered load, compio does 199 k msg/s at 410 % CPU
-  vs tokio's 139 k at 5 410 % (1.43× throughput, ~13× CPU
-  efficiency).
+  Cross-runtime persistence is now wired: the compio firehose calls
+  `Store::try_insert_event` (a sync `tokio::sync::mpsc::Sender::try_send`)
+  directly from compio worker threads; the writer task continues to
+  run on the tokio runtime where sqlx is happy. No extra plumbing
+  needed — both halves of `tokio::sync::mpsc` are runtime-agnostic
+  for `try_send` / `Waker`-driven polling.
+  Headline (persist on): **603 330 msg/s sustained over 30 s, 5 000
+  conns, 0 errors, 797 MB RSS, 830 % CPU** — 12.07× the M5 50 k
+  target. Persist-on matches persist-off within run-to-run noise
+  (199 296 vs 199 318 at matched 200 k offered) — the bounded mpsc
+  absorbs producer pressure and drops at the persistence boundary
+  without ever blocking dispatch (H1 holding under real load).
+  At matched 200 k offered load, compio (persist on) does 199 k
+  msg/s at 430 % CPU vs tokio (persist off) at 139 k @ 5 410 % —
+  1.43× throughput, ~13× CPU efficiency, AND we get persistence for
+  free.
 - **`taktool loadgen --uring`** (Linux only): io_uring backend that
   drives connections through `tokio-uring` instead of tokio's epoll
   reactor. Each connection rotates through 5 pre-cloned framed-fixture

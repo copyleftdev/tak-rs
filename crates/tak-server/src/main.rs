@@ -131,7 +131,7 @@ async fn main() -> Result<()> {
             // its own — spawn_blocking parks on tokio's pool.
             tokio::task::spawn(async move {
                 let res = tokio::task::spawn_blocking(move || {
-                    firehose_compio_run(cot_addr, bus, store, compio_threads)
+                    firehose_compio_run(cot_addr, bus, store, compio_threads, persist)
                 })
                 .await;
                 match res {
@@ -191,8 +191,9 @@ fn firehose_compio_run(
     bus: std::sync::Arc<Bus>,
     store: Store,
     threads: usize,
+    persist: PersistMode,
 ) -> Result<()> {
-    tak_server::firehose_compio::run(addr, bus, store, threads)
+    tak_server::firehose_compio::run(addr, bus, store, threads, persist)
 }
 
 #[cfg(not(target_os = "linux"))]
@@ -201,6 +202,7 @@ fn firehose_compio_run(
     _bus: std::sync::Arc<Bus>,
     _store: Store,
     _threads: usize,
+    _persist: PersistMode,
 ) -> Result<()> {
     anyhow::bail!("--compio is Linux-only; rebuild on Linux or omit the flag")
 }

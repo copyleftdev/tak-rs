@@ -1,0 +1,10 @@
+{
+  "loadgen": {"tag":"rust-compio-persist-8w","target":"127.0.0.1:19688","driver":"tokio","connections":2000,"rate":100,"duration":20,"mix":"Realistic","elapsed_s":20.016012708,"sent_total":3986035,"bytes_total":1484200843,"msg_per_s":199142.30961728262,"mb_per_s":70.71559381014382,"pli":2790210,"chat":797200,"detail":398625,"errors":0},
+  "system": {
+    "target_pid": "2496315",
+    "samples": 18,
+    "peak_cpu_pct": 830,
+    "max_rss_mb": 582
+  },
+  "captured_at": "2026-04-28T15-14-39Z"
+}
