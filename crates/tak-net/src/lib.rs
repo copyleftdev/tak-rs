@@ -6,8 +6,14 @@
 //! - UDP unicast/multicast on `239.2.3.1:6969` (SA mesh)
 //!
 //! Architecture: see `docs/architecture.md` §5.1.
-//! Security invariant C5: no code path passes an unverified peer cert
-//! to `tak-auth`. The `unsafe-auditor` agent gates changes here.
+//! Security invariant **C5**: no code path passes an unverified peer cert
+//! to `tak-auth`. The `unsafe-auditor` agent gates changes here. The
+//! [`tls`] module's [`ServerConfigBuilder`] enforces a required client cert
+//! verifier — the `WebPkiClientVerifier` is the only entry point.
+//!
+//! TLS cipher choice is locked by `docs/decisions/0002-tls-ciphers.md`:
+//! exactly the three RFC 6460 "Suite B" suites the upstream Java server
+//! offers, served via rustls 0.23 + aws_lc_rs + tls12.
 //!
 //! # Example
 //! ```
@@ -40,3 +46,32 @@ pub mod ports {
     /// Federation v2 (gRPC).
     pub const FED_V2: u16 = 9001;
 }
+
+pub mod tls;
+
+/// Errors returned by `tak-net`.
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    /// PEM parse failure (cert chain or private key).
+    #[error("pem: {0}")]
+    Pem(String),
+
+    /// Required PEM input was missing (no certs, no key, etc.).
+    #[error("pem: empty or missing — {0}")]
+    PemEmpty(&'static str),
+
+    /// Underlying rustls config error.
+    #[error("rustls: {0}")]
+    Rustls(#[from] rustls::Error),
+
+    /// Required builder field was not set before [`build`](tls::ServerConfigBuilder::build).
+    #[error("config: required field not set: {0}")]
+    MissingField(&'static str),
+
+    /// Underlying I/O failure (file read on the convenience helpers).
+    #[error("io: {0}")]
+    Io(#[from] std::io::Error),
+}
+
+/// Convenience result type used across the crate.
+pub type Result<T> = core::result::Result<T, Error>;

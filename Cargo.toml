@@ -27,7 +27,7 @@ axum        = "0.8"
 futures     = "0.3"
 
 # --- crypto / network (Smith + Ochtman) ---
-rustls           = { version = "0.23", default-features = false, features = ["aws_lc_rs", "tls12"] }
+rustls           = { version = "0.23", default-features = false, features = ["aws_lc_rs", "tls12", "std"] }
 tokio-rustls     = { version = "0.26", default-features = false, features = ["aws_lc_rs", "tls12"] }
 rustls-pki-types = { version = "1",    features = ["std"] }   # PEM parsing (rustls-pemfile is unmaintained)
 quinn            = "0.11"
@@ -36,6 +36,9 @@ x509-parser  = "0.16"
 
 # --- bytes + zero-copy (Lerche) ---
 bytes = "1"
+
+# --- test-only cert generation ---
+rcgen = { version = "0.13", default-features = false, features = ["aws_lc_rs", "pem"] }
 
 # --- protobuf (Tolnay-tradition codegen) ---
 prost       = "0.13"

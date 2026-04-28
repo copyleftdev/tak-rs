@@ -8,8 +8,12 @@ license      .workspace = true
 authors      .workspace = true
 repository   .workspace = true
 
-# Stub: only port constants today. Deps come back when listeners land (M1).
 [dependencies]
+rustls    .workspace = true
+thiserror .workspace = true
+
+[dev-dependencies]
+rcgen            .workspace = true
 
 [lints]
 workspace = true
