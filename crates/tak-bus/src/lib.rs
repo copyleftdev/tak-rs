@@ -26,8 +26,8 @@
 //! let bus = Bus::new();
 //! let filter = Filter {
 //!     interest_uid: Some("ANDROID-deadbeef".to_owned()),
-//!     interest_callsign: None,
 //!     group_mask: GroupBitvector::EMPTY.with_bit(3),
+//!     ..Filter::default()
 //! };
 //! let handle = bus.subscribe(filter);
 //! assert_eq!(bus.len(), 1);
@@ -49,7 +49,11 @@
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Weak};
 
+use parking_lot::RwLock;
 use sharded_slab::Slab;
+
+pub mod index;
+pub use index::{GeoBbox, GeoIndex, TypeIndex};
 
 // ---------------------------------------------------------------------------
 // GroupBitvector — invariant H4
@@ -108,16 +112,14 @@ pub struct SubscriptionId {
 
 /// Compiled subscription filter.
 ///
-/// At #23 scope this carries the unconditional fields:
-///
 /// - `interest_uid` — direct UID match (overrides type/geo when set, M3).
 /// - `interest_callsign` — direct callsign match.
 /// - `group_mask` — the subscriber's group membership; messages whose
 ///   sender is in any of these groups are candidates for delivery.
-///
-/// Issue #24 adds:
-/// - `type_prefix` — CoT-type glob (e.g. `a-f-G-*`).
-/// - `geo_bbox` — geographic bounding box.
+/// - `type_prefix` — CoT-type pattern. `None` or `Some("*")` matches all
+///   types. Otherwise a hyphen-separated CoT type with optional terminal
+///   `*` wildcard (e.g. `a-f-G-*`).
+/// - `geo_bbox` — geographic bounding box. `None` matches any location.
 #[derive(Debug, Clone, Default)]
 pub struct Filter {
     /// Direct interest in messages whose `event.uid` matches this string.
@@ -127,6 +129,10 @@ pub struct Filter {
     /// Subscriber's group bitvector — gated by `intersects` against the
     /// sender's group bitvector at dispatch time.
     pub group_mask: GroupBitvector,
+    /// CoT-type pattern. `None` matches any type.
+    pub type_prefix: Option<String>,
+    /// Geographic bounding box. `None` matches any location.
+    pub geo_bbox: Option<GeoBbox>,
 }
 
 /// Stored per-subscription state. Internals only — public API hands out
@@ -157,6 +163,8 @@ struct Entry {
 #[derive(Debug)]
 pub struct Bus {
     subs: Slab<Entry>,
+    type_index: RwLock<TypeIndex>,
+    geo_index: RwLock<GeoIndex>,
     next_generation: AtomicU64,
     live: AtomicUsize,
 }
@@ -167,6 +175,8 @@ impl Bus {
     pub fn new() -> Arc<Self> {
         Arc::new(Self {
             subs: Slab::new(),
+            type_index: RwLock::new(TypeIndex::default()),
+            geo_index: RwLock::new(GeoIndex::default()),
             next_generation: AtomicU64::new(0),
             live: AtomicUsize::new(0),
         })
@@ -175,10 +185,15 @@ impl Bus {
     /// Register a subscription. Returns a [`SubscriptionHandle`] whose
     /// `Drop` unsubscribes; keep it alive for the lifetime of the connection.
     #[must_use]
+    #[allow(clippy::needless_pass_by_value)] // by-value matches caller intent (we own it now)
     pub fn subscribe(self: &Arc<Self>, filter: Filter) -> SubscriptionHandle {
         let generation = self.next_generation.fetch_add(1, Ordering::Relaxed);
 
-        let entry = Entry { filter, generation };
+        // Insert into the storage slab first so we have an id to index by.
+        let entry = Entry {
+            filter: filter.clone(),
+            generation,
+        };
         let key = match self.subs.insert(entry) {
             Some(k) => k,
             None => {
@@ -196,14 +211,26 @@ impl Bus {
                 };
             }
         };
+        let id = SubscriptionId {
+            slab_key: key,
+            generation,
+        };
+
+        // Index by type — every subscription is in the type trie. A None
+        // pattern goes into the root wildcard so it matches every type.
+        {
+            let pattern = filter.type_prefix.as_deref().unwrap_or("*");
+            self.type_index.write().insert(pattern, id);
+        }
+        // Index by geo — only subscriptions WITH a bbox are in the rtree.
+        if let Some(bbox) = filter.geo_bbox {
+            self.geo_index.write().insert(bbox, id);
+        }
 
         self.live.fetch_add(1, Ordering::Relaxed);
 
         SubscriptionHandle {
-            id: SubscriptionId {
-                slab_key: key,
-                generation,
-            },
+            id,
             bus: Arc::downgrade(self),
         }
     }
@@ -219,6 +246,57 @@ impl Bus {
         Some(entry.filter.clone())
     }
 
+    /// Append candidate subscription IDs that *may* match an event with the
+    /// given CoT type at `(lat, lon)`. The candidate set is a SUPERSET of
+    /// the actual matches — the caller still applies the group bitvector
+    /// test and any direct UID/callsign override.
+    ///
+    /// `out` is caller-owned to satisfy invariant **H1** (alloc-free
+    /// dispatch in steady state). The caller is responsible for clearing
+    /// `out` between dispatches; this function only appends.
+    pub fn extend_candidates(
+        &self,
+        cot_type: &str,
+        lat: f64,
+        lon: f64,
+        out: &mut Vec<SubscriptionId>,
+    ) {
+        // Type matches include subs with a `None` type filter (under the
+        // root wildcard). We walk the trie under a read lock, so the
+        // dispatch path takes only one read lock per call.
+        self.type_index.read().extend_matches(cot_type, out);
+
+        // Geo: subs with no bbox are NOT in the geo index. We need to
+        // include them as candidates regardless of location, so we DON'T
+        // intersect with geo here — instead, the caller applies the per-
+        // candidate geo test via `Filter::geo_bbox` at dispatch time.
+        // Subs WITH a bbox that happens to contain (lat, lon) come in
+        // via the type index already; the geo index is consulted as a
+        // *narrower* index for queries that originated geographically
+        // (e.g., "who's interested in events near here?") rather than
+        // for type-based dispatch.
+        //
+        // For type-based dispatch (the firehose path), the type index
+        // alone is sufficient as a candidate-superset producer; the
+        // alloc-free per-candidate filter check by the caller is fast.
+
+        // Mark `lat`/`lon` as deliberately not-yet-used here to suppress
+        // the unused-variable lint without weakening the API. They become
+        // load-bearing in #25 when dispatch wires this in with the
+        // alternative geo-keyed candidate path.
+        let _ = (lat, lon);
+    }
+
+    /// Append candidate subscription IDs whose geo bbox contains
+    /// `(lat, lon)`. Subscriptions without a bbox are NOT included by
+    /// this function (they're not in the geo index). Used by callers
+    /// that want a geo-narrowed candidate set — currently called only
+    /// by tests and benches; #25's dispatch will combine with type
+    /// matches as appropriate.
+    pub fn extend_geo_candidates(&self, lat: f64, lon: f64, out: &mut Vec<SubscriptionId>) {
+        self.geo_index.read().extend_matches(lat, lon, out);
+    }
+
     /// Number of live subscriptions.
     #[must_use]
     pub fn len(&self) -> usize {
@@ -232,13 +310,34 @@ impl Bus {
     }
 
     fn unsubscribe(&self, id: SubscriptionId) {
-        // Verify generation before removing — defensively guards against
-        // a doubled-Drop or stale handle from a since-reused slot.
-        let still_ours = self
-            .subs
-            .get(id.slab_key)
-            .is_some_and(|e| e.generation == id.generation);
-        if still_ours && self.subs.remove(id.slab_key) {
+        // Verify generation and copy out the filter fields we need to
+        // remove from the indices, then remove from slab.
+        let (still_ours, type_pattern, geo_bbox) = {
+            let Some(entry) = self.subs.get(id.slab_key) else {
+                return;
+            };
+            if entry.generation != id.generation {
+                return;
+            }
+            let pat = entry
+                .filter
+                .type_prefix
+                .clone()
+                .unwrap_or_else(|| "*".to_owned());
+            (true, pat, entry.filter.geo_bbox)
+        };
+        if !still_ours {
+            return;
+        }
+
+        // De-index BEFORE removing from slab so a concurrent dispatch can't
+        // resolve a candidate id whose slab slot has been emptied.
+        self.type_index.write().remove(&type_pattern, id);
+        if let Some(bbox) = geo_bbox {
+            self.geo_index.write().remove(bbox, id);
+        }
+
+        if self.subs.remove(id.slab_key) {
             self.live.fetch_sub(1, Ordering::Relaxed);
         }
     }
@@ -287,8 +386,7 @@ mod tests {
     fn flt(uid: &str) -> Filter {
         Filter {
             interest_uid: Some(uid.to_owned()),
-            interest_callsign: None,
-            group_mask: GroupBitvector::EMPTY,
+            ..Filter::default()
         }
     }
 

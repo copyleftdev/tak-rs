@@ -10,6 +10,9 @@ repository   .workspace = true
 
 [dependencies]
 sharded-slab .workspace = true
+parking_lot  .workspace = true
+rstar        .workspace = true
+smallvec     .workspace = true
 
 [dev-dependencies]
 criterion .workspace = true

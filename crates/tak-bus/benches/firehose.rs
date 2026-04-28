@@ -13,7 +13,7 @@
 use std::sync::Arc;
 
 use criterion::{Criterion, criterion_group, criterion_main};
-use tak_bus::{Bus, Filter, GroupBitvector};
+use tak_bus::{Bus, Filter, GeoBbox, GroupBitvector};
 
 fn group_intersect(c: &mut Criterion) {
     let a = GroupBitvector([0xAAAA_AAAA_AAAA_AAAA; 4]);
@@ -92,6 +92,54 @@ fn ten_thousand_live_subs_lookup(c: &mut Criterion) {
     let _ = Arc::clone(&bus);
 }
 
+/// Issue #24 acceptance bench: candidate lookup at 10k subs ≤10μs.
+///
+/// 10_000 subscriptions: 50% wildcard type filter, 30% prefix wildcard
+/// (`a-f-G-*`-style), 20% exact CoT type. Quarter of them have a geo bbox.
+/// Query fires for an `a-f-G-U-C` event at LA coordinates.
+fn candidate_lookup_at_10k_subs(c: &mut Criterion) {
+    let bus = Bus::new();
+    let mut handles = Vec::with_capacity(10_000);
+    for i in 0..10_000 {
+        let type_prefix = match i % 10 {
+            0..=4 => None,                         // wildcard
+            5..=7 => Some(format!("a-f-G-{i}-*")), // mostly-mismatching prefix wildcard
+            _ => Some("a-f-G-U-C".to_owned()),     // exact-match (will all match the query)
+        };
+        let geo_bbox = if i % 4 == 0 {
+            let f = f64::from(i) / 1000.0;
+            Some(GeoBbox {
+                min_lat: 30.0 + f.sin() * 5.0,
+                min_lon: -120.0 + f.cos() * 5.0,
+                max_lat: 35.0 + f.sin() * 5.0,
+                max_lon: -115.0 + f.cos() * 5.0,
+            })
+        } else {
+            None
+        };
+        handles.push(bus.subscribe(Filter {
+            type_prefix,
+            geo_bbox,
+            ..Filter::default()
+        }));
+    }
+
+    let mut buf = Vec::with_capacity(10_000);
+    c.bench_function("candidate_lookup_at_10k_subs", |b| {
+        b.iter(|| {
+            buf.clear();
+            bus.extend_candidates(
+                std::hint::black_box("a-f-G-U-C"),
+                std::hint::black_box(34.05),
+                std::hint::black_box(-118.24),
+                &mut buf,
+            );
+            std::hint::black_box(&buf);
+        })
+    });
+    let _ = Arc::clone(&bus);
+}
+
 criterion_group!(
     benches,
     group_intersect,
@@ -100,5 +148,6 @@ criterion_group!(
     subscribe_only,
     get_filter_warm,
     ten_thousand_live_subs_lookup,
+    candidate_lookup_at_10k_subs,
 );
 criterion_main!(benches);
