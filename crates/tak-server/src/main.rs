@@ -27,7 +27,7 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use mimalloc::MiMalloc;
 use tak_bus::Bus;
-use tak_server::firehose;
+use tak_server::firehose::{self, PersistMode};
 use tak_store::Store;
 use tokio::net::TcpListener;
 use tracing::{info, warn};
@@ -49,6 +49,12 @@ struct Args {
     /// Mission API listen address.
     #[arg(long, env = "TAK_LISTEN_API", default_value = "0.0.0.0:8080")]
     listen_api: SocketAddr,
+
+    /// Skip the persistence side-channel for every CoT event.
+    /// Used for apples-to-apples bus dispatch benchmarks against an
+    /// upstream Java server with persistence disabled or off-box.
+    #[arg(long, env = "TAK_NO_PERSIST", default_value_t = false)]
+    no_persist: bool,
 }
 
 #[tokio::main]
@@ -66,8 +72,14 @@ async fn main() -> Result<()> {
         version = env!("CARGO_PKG_VERSION"),
         listen_cot = %args.listen_cot,
         listen_api = %args.listen_api,
+        no_persist = args.no_persist,
         "tak-server starting"
     );
+    let persist = if args.no_persist {
+        PersistMode::Off
+    } else {
+        PersistMode::On
+    };
 
     let store = Store::connect_and_migrate(&args.database_url)
         .await
@@ -101,7 +113,7 @@ async fn main() -> Result<()> {
         let bus = bus.clone();
         let store = store.clone();
         tokio::spawn(async move {
-            if let Err(e) = firehose::run(cot_listener, bus, store).await {
+            if let Err(e) = firehose::run(cot_listener, bus, store, persist).await {
                 warn!(error = ?e, "firehose loop exited");
             }
         })

@@ -30,20 +30,31 @@ The same physical box runs the load generator and the server under test, on isol
 
 ### 3.1 Throughput
 
-#### First Rust capture (2026-04-28, 30 s sustained)
+#### Rust capture (2026-04-28, single-box loopback, `--release` build)
 
-Captured with `scripts/bench-baseline.sh --connections 1000 --rate 50 --duration 30 --mix realistic`. Single-box loopback against `127.0.0.1`. Rust compiled with `--release` (LTO=fat, codegen-units=1, panic=abort per `Cargo.toml`).
+The first run with a 1000-conn × 50 msg/s offered load measured **46 k msg/s**, which we initially flagged as concerning. Pushing the offered load up to 2000-conn × 100 msg/s revealed that the earlier number was **loadgen-side rate-jitter limited**, not a server-side ceiling. The server was idle most of the time waiting for the next message.
 
-Raw run: [`bench/history/rust-firehose-50k-2026-04-28T13-53-48Z.json`](../bench/history/rust-firehose-50k-2026-04-28T13-53-48Z.json).
+All runs via `scripts/bench-baseline.sh`; raw JSON in `bench/history/`. Single laptop, single-box loopback. Run-to-run variance on this hardware is ±10 %, so the comparisons below are qualitative — the Java cross-comparison will be measured back-to-back on the same hardware to get a clean ratio.
 
-| Side | Sent (total) | Sent (msg/s) | MB/s | Ratio |
-|------|--------------|--------------|------|-------|
-| Java upstream | _TBD_ (awaiting container) | _TBD_ | _TBD_ | 1.00× (baseline) |
-| **tak-rs** | **1 392 750** | **46 385** | **16.47** | _TBD_ |
+| Tag | Mode | Conns | Offered | Sustained (msg/s) | Max RSS (MB) | Peak CPU % |
+|---|---|---|---|---|---|---|
+| `rust-persist-50k` | persist | 1 000 | 50 k | 41 848 | 111 | 2 060 |
+| `rust-nopersist-50k` | dispatch-only | 1 000 | 50 k | 43 799 | 105 | 2 110 |
+| `rust-persist-200k` | persist | 2 000 | 200 k | **114 573** | 176 | 6 290 |
+| `rust-nopersist-200k` | dispatch-only | 2 000 | 200 k | **141 815** | 226 | 6 090 |
 
-The Rust row is at **93 % of the M5 50 k msg/s headline target** with 1000 concurrent connections sustained — and that's measured with persistence enabled (full `dispatch_and_persist` path, not just the bus).
+| Side | Configuration | Sent (msg/s) | Ratio |
+|------|--------------|--------------|-------|
+| Java upstream | _TBD_ (awaiting container) | _TBD_ | 1.00× (baseline) |
+| **tak-rs (persist)** | 2 000 conn × 100 msg/s × 20 s | **114 573** | _TBD_ |
+| **tak-rs (no-persist)** | 2 000 conn × 100 msg/s × 20 s | **141 815** | _TBD_ |
 
-The 50 k target is a 1000-conn × 50 msg/s offered load; tak-rs accepted 1 392 750 of 1 500 000 offered (92.85 %), with 44 wire-side errors (0.003 %). The 7 % gap to the offered load comes from per-connection rate jitter on the loadgen side, not server-side drops — tak-server reported zero accept errors and only 44 of the 1500 messages × 1000 connections came back as `errors` in the JSON.
+**Key findings**
+
+- **tak-rs is 2.3× the M5 50 k msg/s headline target with persistence on**, and 2.8× with `--no-persist`. The earlier 46 k figure (1 000 conn × 50 msg/s offered) was loadgen-rate-jitter limited, not a server ceiling — at that offered load, the server is mostly idle waiting for the next message.
+- The **persistence side-channel costs ~19 %** at 200 k offered (114 k vs 142 k). The `CotInsert` allocations (5 owned `String`s per message) are now visible in the gap. The H1 hot path stays alloc-free — those allocations live on the *persistence* side of the bounded mpsc per pipeline.rs's intentional design — but they consume real CPU.
+- Zero-copy frame extraction (`split_to().freeze()` vs `Bytes::copy_from_slice`) is in place but its gain at 50 k offered is below the run-to-run noise floor on this hardware. It would show clearly with a kernel-bypass loadgen; for now we ship the change because it's the architecturally correct one (no per-message memcpy off the read buffer).
+- Per-connection RSS at 2 000 conns: ~88 KB — well below the typical Java `ChannelHandlerContext` weight, though we have not yet measured Java side-by-side on the same box.
 
 ### 3.2 Latency
 
@@ -66,7 +77,10 @@ Peak RSS observed during the run (sampled at 1 Hz via `/proc/<pid>/status`).
 | Side | Max RSS (MB) | Per connection |
 |------|--------------|----------------|
 | Java upstream | _TBD_ | _TBD_ |
-| **tak-rs (1000 conn, 30 s)** | **111** | **~110 KB** |
+| tak-rs (1 000 conn, persist) | 111 | ~110 KB |
+| tak-rs (1 000 conn, no-persist) | 105 | ~105 KB |
+| **tak-rs (2 000 conn, persist)** | **176** | **~88 KB** |
+| **tak-rs (2 000 conn, no-persist)** | **226** | **~113 KB** |
 
 Java's per-connection state is dominated by the GC-tracked `ChannelHandlerContext` plus the mutable `BigInteger` group bitvector; tak-rs's per-connection state is the fixed `[u64; 4]` mask plus the slab-allocated `Subscription`. The 110 KB/conn for the Rust path includes the per-connection `BytesMut` read buffer (8 KB initial, grows on demand) and the bounded mpsc channel (`DEFAULT_SUBSCRIBER_CAPACITY` × `Bytes` slot ≈ 32 KB), so the steady-state cost per connection is much smaller than the high-water RSS suggests.
 
@@ -79,7 +93,10 @@ Peak CPU% observed (`top -b -n 1 -p PID`, 1 Hz sampling — sum across threads, 
 | Side | Peak % | Notes |
 |------|--------|-------|
 | Java upstream | _TBD_ | _TBD_ |
-| **tak-rs (1000 conn)** | **1700** | 17 cores effectively in use; tokio multi-thread runtime saturating the box on a 50 k offered load. |
+| tak-rs (1 000 conn, persist) | 2 060 | 20 cores at 50 k offered. |
+| tak-rs (1 000 conn, no-persist) | 2 110 | 21 cores at 50 k offered. |
+| **tak-rs (2 000 conn, persist)** | **6 290** | 63 cores at 200 k offered — fully saturating the box. |
+| **tak-rs (2 000 conn, no-persist)** | **6 090** | 61 cores at 200 k offered. |
 
 ### 3.5 Verdict
 

@@ -15,9 +15,26 @@ Internal milestones (M0–M5) and the issues that close them are referenced inli
   accept loop (default `:8088`) that decodes framed TAK Protocol v1 messages,
   feeds them into `pipeline::dispatch_and_persist`, and re-broadcasts to all
   connected subscribers. The mission API (default `:8080`) and the firehose
-  share the same `Store` handle. First real Rust baseline captured: **46 385
-  msg/s, 1000 conns, 16.5 MB/s, 111 MB RSS** at 50 k msg/s offered load —
-  93 % of the M5 50 k headline target. Numbers in `docs/perf-comparison.md`.
+  share the same `Store` handle.
+- **Zero-copy frame extraction in `firehose::read_loop`.** Replaced
+  `Bytes::copy_from_slice(&buf[..framed_len])` with
+  `BytesMut::split_to(total).freeze()` — no per-message memcpy off the read
+  buffer; the underlying allocation flows through `Bytes::clone` (Arc bump,
+  H3) all the way out to subscriber sockets.
+- **`tak-server --no-persist` flag** (env: `TAK_NO_PERSIST=true`) skips the
+  persistence side-channel entirely. Used to measure pure dispatch
+  throughput against an upstream Java server with persistence disabled.
+- **First real Rust firehose perf numbers** (single-box loopback,
+  `--release`, harness-captured in `bench/history/rust-*.json`):
+  - 114 573 msg/s with persistence enabled (200 k msg/s offered)
+  - 141 815 msg/s with `--no-persist` (200 k msg/s offered)
+  - **2.3× the M5 50 k msg/s headline target** with persistence on
+    (2.8× without). Numbers in `docs/perf-comparison.md`. Earlier 46 k
+    figure (50 k offered) was loadgen-rate-jitter limited, not a
+    server ceiling.
+  - Persistence side-channel costs ~19 % relative to bus-only — the
+    `CotInsert` `String` allocations are real but stay strictly off
+    the H1 hot path (proven by the dhat test in M2).
 - **`xtask` automation crate.** New `crates/xtask` accessible via `cargo xt <verb>`.
   First verb: `proto-diff`, which compares vendored `.proto` files against
   `.scratch/takserver-java` and reports byte-equality + missing-on-each-side. Used

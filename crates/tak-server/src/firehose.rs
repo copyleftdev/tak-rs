@@ -35,6 +35,19 @@ use tracing::{debug, info, warn};
 
 use crate::pipeline;
 
+/// Whether the firehose should write each inbound CoT event to the
+/// `cot_router` table. `--no-persist` on the binary turns this off so
+/// the dispatch path can be benched apples-to-apples against an
+/// upstream Java server with persistence disabled or off-box.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PersistMode {
+    /// Full pipeline: dispatch + best-effort persistence.
+    On,
+    /// Bus dispatch only; the persistence side-channel is skipped
+    /// entirely (no `CotInsert` allocations, no mpsc try_send).
+    Off,
+}
+
 /// Group bitvector with every bit set — used as the v0 "no auth, no
 /// filter" mask. Both the per-connection [`Filter::group_mask`] and
 /// the inbound `sender_groups` use this so [`GroupBitvector::intersects`]
@@ -49,7 +62,8 @@ const READ_BUF_CAPACITY: usize = 8192;
 ///
 /// Each accepted connection spawns two tasks:
 /// - **reader** — drains framed CoT messages from the socket and feeds
-///   them into [`pipeline::dispatch_and_persist`].
+///   them into [`pipeline::dispatch_and_persist`] (or
+///   [`pipeline::dispatch_only`] when `persist == PersistMode::Off`).
 /// - **writer** — drains the subscription mpsc and writes each
 ///   delivered frame back to the same socket.
 ///
@@ -62,9 +76,14 @@ const READ_BUF_CAPACITY: usize = 8192;
 /// Returns when `TcpListener::accept` returns an unrecoverable error
 /// (e.g. listener was closed). Per-connection errors are logged via
 /// `tracing` but never propagated up.
-pub async fn run(listener: TcpListener, bus: Arc<Bus>, store: Store) -> Result<()> {
+pub async fn run(
+    listener: TcpListener,
+    bus: Arc<Bus>,
+    store: Store,
+    persist: PersistMode,
+) -> Result<()> {
     let connection_id = Arc::new(AtomicU64::new(0));
-    info!(addr = ?listener.local_addr().ok(), "firehose: accept loop started");
+    info!(addr = ?listener.local_addr().ok(), ?persist, "firehose: accept loop started");
 
     loop {
         let (sock, peer) = match listener.accept().await {
@@ -85,13 +104,19 @@ pub async fn run(listener: TcpListener, bus: Arc<Bus>, store: Store) -> Result<(
         #[allow(clippy::disallowed_methods)]
         tokio::spawn(async move {
             debug!(conn = id, peer = %peer, "firehose: accepted");
-            handle_connection(id, sock, bus, store).await;
+            handle_connection(id, sock, bus, store, persist).await;
             debug!(conn = id, "firehose: closed");
         });
     }
 }
 
-async fn handle_connection(id: u64, sock: TcpStream, bus: Arc<Bus>, store: Store) {
+async fn handle_connection(
+    id: u64,
+    sock: TcpStream,
+    bus: Arc<Bus>,
+    store: Store,
+    persist: PersistMode,
+) {
     let (read, write) = sock.into_split();
 
     let filter = Filter {
@@ -103,7 +128,7 @@ async fn handle_connection(id: u64, sock: TcpStream, bus: Arc<Bus>, store: Store
     #[allow(clippy::disallowed_methods)]
     let writer = tokio::spawn(write_loop(id, write, rx));
 
-    if let Err(e) = read_loop(id, read, &bus, &store).await {
+    if let Err(e) = read_loop(id, read, &bus, &store, persist).await {
         debug!(conn = id, error = ?e, "firehose: reader exit");
     }
 
@@ -111,12 +136,20 @@ async fn handle_connection(id: u64, sock: TcpStream, bus: Arc<Bus>, store: Store
     writer.abort();
 }
 
-/// Read framed CoT from the socket, decode, dispatch, persist.
+/// Read framed CoT from the socket, decode, dispatch, optionally persist.
+///
+/// **Zero-copy frame extraction:** for each complete frame in the
+/// buffer we call [`framing::decode_stream`] only to learn the frame's
+/// total length, then `BytesMut::split_to(total).freeze()` hands the
+/// front of the buffer over to the dispatch path as a `Bytes` with no
+/// memcpy. The proto payload slice is re-derived from the now-detached
+/// frame and decoded in place.
 async fn read_loop(
     id: u64,
     mut read: tokio::net::tcp::OwnedReadHalf,
     bus: &Arc<Bus>,
     store: &Store,
+    persist: PersistMode,
 ) -> Result<()> {
     let mut buf = BytesMut::with_capacity(READ_BUF_CAPACITY);
     let mut scratch = DispatchScratch::default();
@@ -134,39 +167,58 @@ async fn read_loop(
 
         // Drain as many complete frames as the buffer holds. decode_stream
         // returns Err when the buffer is short; that's the loop terminator.
-        while let Ok((consumed, payload)) = framing::decode_stream(&buf[..]) {
-            // Keep both views: the framed slice (what we re-broadcast,
-            // since subscribers are TAK clients that expect framing on
-            // the wire) and the inner protobuf (what we decode for
-            // dispatch metadata).
-            let framed_len = consumed;
-            let proto_payload = payload;
+        while let Ok((total, _)) = framing::decode_stream(&buf[..]) {
+            // Hand the frame off to the bus path with zero memcpy.
+            // BytesMut::split_to + freeze ⇒ ref-counted ownership
+            // transfer; the underlying allocation is shared across all
+            // subscriber clones (Bytes::clone is an Arc bump, H3).
+            let framed: Bytes = buf.split_to(total).freeze();
+
+            // Re-derive the proto slice from the detached frame. The
+            // borrow's lifetime ends once TakMessage::decode returns.
+            let proto_payload = match framing::decode_stream(&framed[..]) {
+                Ok((_, payload)) => payload,
+                Err(e) => {
+                    // Should not happen: we just decoded the same bytes
+                    // out of `buf` successfully a moment ago.
+                    warn!(conn = id, error = ?e, "firehose: re-decode of detached frame failed");
+                    continue;
+                }
+            };
 
             match TakMessage::decode(proto_payload) {
                 Ok(msg) => {
-                    let framed_bytes = Bytes::copy_from_slice(&buf[..framed_len]);
-                    let _ = pipeline::dispatch_and_persist(
-                        bus,
-                        store,
-                        &msg,
-                        ALL_GROUPS,
-                        framed_bytes,
-                        &mut scratch,
-                    );
+                    match persist {
+                        PersistMode::On => {
+                            let _ = pipeline::dispatch_and_persist(
+                                bus,
+                                store,
+                                &msg,
+                                ALL_GROUPS,
+                                framed,
+                                &mut scratch,
+                            );
+                        }
+                        PersistMode::Off => {
+                            let _ = pipeline::dispatch_only(
+                                bus,
+                                &msg,
+                                ALL_GROUPS,
+                                framed,
+                                &mut scratch,
+                            );
+                        }
+                    }
                     decoded += 1;
                 }
                 Err(e) => {
                     warn!(
                         conn = id,
                         error = ?e,
-                        "firehose: TakMessage decode failed; advancing past frame"
+                        "firehose: TakMessage decode failed; frame dropped"
                     );
                 }
             }
-
-            // Drop the consumed bytes from the front of the buffer.
-            // BytesMut::advance is the in-place cursor move.
-            let _ = buf.split_to(framed_len);
         }
     }
 }

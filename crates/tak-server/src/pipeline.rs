@@ -120,3 +120,39 @@ pub fn dispatch_and_persist(
         persisted,
     })
 }
+
+/// Dispatch only — bypasses the persistence side-channel entirely.
+/// Used by `tak-server --no-persist` to measure the pure firehose
+/// dispatch throughput against the upstream Java baseline.
+///
+/// This is the apples-to-apples number for comparing against
+/// `takserver` configurations that have persistence disabled or
+/// off-box.
+///
+/// # Errors
+///
+/// - [`PipelineError::MissingCotEvent`] if `msg.cot_event` is `None`.
+#[allow(clippy::needless_pass_by_value)]
+pub fn dispatch_only(
+    bus: &Bus,
+    msg: &TakMessage,
+    sender_groups: GroupBitvector,
+    payload: Bytes,
+    scratch: &mut DispatchScratch,
+) -> Result<DispatchStats, PipelineError> {
+    let cot = msg
+        .cot_event
+        .as_ref()
+        .ok_or(PipelineError::MissingCotEvent)?;
+
+    let inbound = Inbound {
+        payload,
+        sender_groups,
+        cot_type: &cot.r#type,
+        lat: cot.lat,
+        lon: cot.lon,
+        uid: Some(&cot.uid),
+        callsign: None,
+    };
+    Ok(bus.dispatch(&inbound, scratch))
+}

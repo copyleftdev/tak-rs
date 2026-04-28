@@ -21,7 +21,7 @@ use tak_bus::Bus;
 use tak_cot::framing;
 use tak_cot::proto::view_to_takmessage;
 use tak_cot::xml::decode_xml;
-use tak_server::firehose;
+use tak_server::firehose::{self, PersistMode};
 use tak_store::Store;
 use testcontainers::core::{ContainerPort, IntoContainerPort, WaitFor};
 use testcontainers::runners::AsyncRunner;
@@ -72,7 +72,7 @@ async fn firehose_dispatches_and_persists_a_real_frame() {
     let bus_for_loop = bus.clone();
     let store_for_loop = store.clone();
     let _accept = tokio::spawn(async move {
-        let _ = firehose::run(listener, bus_for_loop, store_for_loop).await;
+        let _ = firehose::run(listener, bus_for_loop, store_for_loop, PersistMode::On).await;
     });
 
     // Bake one PLI frame the same way taktool loadgen does.
