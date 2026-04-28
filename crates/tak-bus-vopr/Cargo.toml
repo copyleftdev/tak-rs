@@ -23,6 +23,12 @@ tokio      .workspace = true     # mpsc::Receiver::try_recv only; no runtime
 # ThreadRng is non-seedable.
 rand        = { version = "0.8", default-features = false, features = ["std", "std_rng"] }
 rand_chacha = "0.3"
+# dhat is wired as the global allocator unconditionally so
+# `--alloc-mode` can read HeapStats. With no Profiler running, the
+# overhead is two atomic adds per alloc — acceptable for a CI
+# tool. Default-mode runs are still fast enough (~130k ops/s on
+# the 100k-op default).
+dhat       .workspace = true
 
 [lints]
 workspace = true

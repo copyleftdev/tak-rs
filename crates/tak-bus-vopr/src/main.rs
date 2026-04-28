@@ -50,11 +50,20 @@
     unreachable_pub
 )]
 
+mod alloc_mode;
 mod model;
 mod op;
 mod runner;
 
 use clap::Parser;
+
+/// dhat is wired as the global allocator unconditionally so
+/// `--alloc-mode` has access to `HeapStats`. With no `Profiler`
+/// running it costs a couple of relaxed atomic ops per alloc;
+/// default runs still hit ~130k ops/s on the existing 100k-op
+/// workload.
+#[global_allocator]
+static ALLOC: dhat::Alloc = dhat::Alloc;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -86,10 +95,29 @@ struct Args {
     /// a number that keeps the harness brisk.
     #[arg(long, env = "VOPR_MAX_SUBS", default_value_t = 64)]
     max_subs: usize,
+
+    /// Run the H1 alloc-free invariant check instead of the
+    /// regular model-vs-bus campaign. Boots dhat, warms a
+    /// diverse subscriber population, snapshots, dispatches the
+    /// configured number of mixed-Inbound ops, snapshots, asserts
+    /// zero allocation delta. Strictly stronger than the
+    /// existing `tak-bus/tests/no_alloc.rs` test (which uses ONE
+    /// fixed Inbound shape). A non-zero delta means something
+    /// regressed H1 under diverse traffic.
+    #[arg(long, env = "VOPR_ALLOC_MODE", default_value_t = false)]
+    alloc_mode: bool,
 }
 
 fn main() -> anyhow::Result<()> {
     let args = Args::parse();
+
+    if args.alloc_mode {
+        return alloc_mode::run(&alloc_mode::Config {
+            seed: args.seed,
+            measured_ops: args.ops,
+            max_subs: args.max_subs,
+        });
+    }
 
     println!(
         "tak-bus-vopr  seed={:#018x}  ops={}  max_subs={}",
