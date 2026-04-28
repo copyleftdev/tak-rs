@@ -2428,6 +2428,7 @@ name = "tak-bus"
 version = "0.0.1"
 dependencies = [
  "criterion",
+ "sharded-slab",
 ]
 
 [[package]]

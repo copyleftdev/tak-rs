@@ -8,11 +8,11 @@ license      .workspace = true
 authors      .workspace = true
 repository   .workspace = true
 
-# Stub: only GroupBitvector today. Deps come back when registry + dispatch land (M2).
 [dependencies]
+sharded-slab .workspace = true
 
 [dev-dependencies]
-criterion  .workspace = true
+criterion .workspace = true
 
 [lints]
 workspace = true
