@@ -10,6 +10,7 @@
 )]
 
 mod loadgen;
+mod loadgen_quic;
 
 #[cfg(target_os = "linux")]
 mod loadgen_uring;
@@ -50,13 +51,19 @@ fn main() -> anyhow::Result<()> {
 #[cfg(target_os = "linux")]
 fn run_loadgen(args: loadgen::LoadgenArgs) -> anyhow::Result<()> {
     init_loadgen_tracing();
+    if args.quic && args.uring {
+        anyhow::bail!("--quic and --uring are mutually exclusive");
+    }
     if args.uring {
-        loadgen_uring::run(args)
+        return loadgen_uring::run(args);
+    }
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()?;
+    if args.quic {
+        rt.block_on(loadgen_quic::run(args))
     } else {
-        tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()?
-            .block_on(loadgen::run(args))
+        rt.block_on(loadgen::run(args))
     }
 }
 
@@ -66,10 +73,14 @@ fn run_loadgen(args: loadgen::LoadgenArgs) -> anyhow::Result<()> {
     if args.uring {
         anyhow::bail!("--uring is Linux-only; rebuild on Linux or omit the flag");
     }
-    tokio::runtime::Builder::new_multi_thread()
+    let rt = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
-        .build()?
-        .block_on(loadgen::run(args))
+        .build()?;
+    if args.quic {
+        rt.block_on(loadgen_quic::run(args))
+    } else {
+        rt.block_on(loadgen::run(args))
+    }
 }
 
 fn init_loadgen_tracing() {

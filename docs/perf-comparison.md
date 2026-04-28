@@ -92,7 +92,23 @@ The compio firehose runs on dedicated OS threads (one io_uring per worker). The 
 
 `mpsc::Sender::try_send` is a lock-free atomic + `Notify::notify_one`; polling `mpsc::Receiver::recv()` from tokio uses standard `Waker`s and does not care which thread/runtime woke it. **The persist headline run produced 197 080 inserts in `cot_router` over 30 s** while the firehose pushed 17.8 M msg/s of dispatch work — drops happen in the persistence channel under sustained max-rate, but never block the H1 path.
 
-### 3.1.b Loadgen driver: tokio vs uring (less interesting now)
+### 3.1.b QUIC firehose (`tak-server --quic`)
+
+**v0 measurement** (`rust-quic-500x50`, 500 conn × 50 msg/s × 60 s, ALPN `tak-firehose/1` over UDP loopback, self-signed RSA cert, `--no-persist` for parity with the matching Rust runs above):
+
+| Tag | Stack | Conns | Offered | Sustained (msg/s) | RSS | CPU % | Errors |
+|---|---|---|---|---|---|---|---|
+| `rust-quic-500x50` | tak-rs / quinn | 500 | 25 k | **23 917** | 155 MB | 1 300 | 0 |
+
+A like-for-like compio TCP run at this offered load tracks the offered rate at ~10 % of the CPU. **On loopback, QUIC underperforms plain TCP on raw throughput** — the win is elsewhere:
+
+- Per-connection TLS 1.3 handshakes serialize: 2 000-conn cold-start runs spent ~20 s in handshake before steady state. ATAK fleets don't reconnect simultaneously, so this disappears in production.
+- Loopback UDP is *less* optimised than loopback TCP in the Linux kernel (no TSO, no GRO, more per-packet ACK churn). On a real WAN the gap closes.
+- The QUIC value proposition is **connection migration** (a phone roaming Wi-Fi → LTE keeps the same session), **0-RTT resume** after the first connection, and **head-of-line-free streams per traffic class**. None of those measure on a single-host bench.
+
+We ship QUIC as opt-in (`--quic`, default off) so operators who care about mobile reliability can enable it; the TCP firehose remains the default path.
+
+### 3.1.c Loadgen driver: tokio vs uring (less interesting now)
 
 | Tag | Server persist | Loadgen driver | Sustained (msg/s) | Max RSS (MB) | Peak CPU % |
 |---|---|---|---|---|---|

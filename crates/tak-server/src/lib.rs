@@ -24,4 +24,5 @@
 pub mod firehose;
 #[cfg(target_os = "linux")]
 pub mod firehose_compio;
+pub mod firehose_quic;
 pub mod pipeline;

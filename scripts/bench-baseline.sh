@@ -37,6 +37,7 @@ MIX="realistic"
 TAG="rust"
 TARGET_PID=""
 URING_FLAG=""
+QUIC_FLAG=""
 
 usage() {
     cat <<EOF
@@ -51,6 +52,7 @@ Options:
   --tag NAME           tag embedded in JSON (default: "rust")
   --pid PID            target process pid for CPU/RSS sampling (auto if empty)
   --uring              use the io_uring loadgen driver (Linux only)
+  --quic               use the QUIC loadgen driver (target a tak-server --quic listener)
   -h, --help           show this help
 
 The run output is written to $HISTORY_DIR/<tag>-<timestamp>.json.
@@ -67,6 +69,7 @@ while [[ $# -gt 0 ]]; do
         --tag)          TAG="$2"; shift 2 ;;
         --pid)          TARGET_PID="$2"; shift 2 ;;
         --uring)        URING_FLAG="--uring"; shift ;;
+        --quic)         QUIC_FLAG="--quic"; shift ;;
         -h|--help)      usage; exit 0 ;;
         *)              echo "unknown arg: $1" >&2; usage; exit 1 ;;
     esac
@@ -124,7 +127,7 @@ LOADGEN_JSON="$(
         --duration "$DURATION" \
         --mix "$MIX" \
         --tag "$TAG" \
-        $URING_FLAG \
+        $URING_FLAG $QUIC_FLAG \
         --json
 )"
 

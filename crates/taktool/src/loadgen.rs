@@ -141,6 +141,13 @@ pub(crate) struct LoadgenArgs {
     /// at startup. Single-threaded uring runtime.
     #[arg(long)]
     pub(crate) uring: bool,
+
+    /// Use the QUIC driver. Connects via quinn over rustls TLS 1.3
+    /// with ALPN `tak-firehose/1`. Targets `tak-server --quic`.
+    /// The bench accepts a self-signed server cert (insecure
+    /// verifier); production loadgen would pin a real CA.
+    #[arg(long)]
+    pub(crate) quic: bool,
 }
 
 /// Build the wire payload (TakMessage proto, length-prefixed) from one
@@ -400,7 +407,13 @@ pub(crate) fn emit_json_summary(args: &LoadgenArgs, stats: &Stats, elapsed: Dura
     let errs = stats.write_errors.load(Ordering::Relaxed);
     let msg_per_s = sent as f64 / elapsed_s;
     let mb_per_s = (bytes as f64 / elapsed_s) / 1_048_576.0;
-    let driver = if args.uring { "io_uring" } else { "tokio" };
+    let driver = if args.quic {
+        "quic"
+    } else if args.uring {
+        "io_uring"
+    } else {
+        "tokio"
+    };
     println!(
         r#"{{"tag":"{tag}","target":"{target}","driver":"{driver}","connections":{conns},"rate":{rate},"duration":{dur},"mix":"{mix:?}","elapsed_s":{elapsed_s},"sent_total":{sent},"bytes_total":{bytes},"msg_per_s":{mps},"mb_per_s":{bps},"pli":{pli},"chat":{chat},"detail":{detail},"errors":{errs}}}"#,
         tag = args.tag,

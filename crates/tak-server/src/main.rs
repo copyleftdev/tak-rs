@@ -67,6 +67,25 @@ struct Args {
     /// Ignored unless `--compio` is set.
     #[arg(long, env = "TAK_COMPIO_THREADS", default_value_t = 4)]
     compio_threads: usize,
+
+    /// Also bind a QUIC firehose listener (UDP, TLS 1.3, ALPN
+    /// `tak-firehose/1`). Independent of --compio; both can run.
+    #[arg(long, env = "TAK_QUIC", default_value_t = false)]
+    quic: bool,
+
+    /// QUIC listen address (UDP). Default :8090, one above the TCP
+    /// firehose. Ignored unless `--quic` is set.
+    #[arg(long, env = "TAK_LISTEN_QUIC", default_value = "0.0.0.0:8090")]
+    listen_quic: SocketAddr,
+
+    /// PEM cert chain for the QUIC TLS handshake. If unset, a
+    /// self-signed cert is generated at startup (bench / dev only).
+    #[arg(long, env = "TAK_QUIC_CERT")]
+    quic_cert: Option<std::path::PathBuf>,
+
+    /// PEM private key for the QUIC TLS handshake.
+    #[arg(long, env = "TAK_QUIC_KEY")]
+    quic_key: Option<std::path::PathBuf>,
 }
 
 #[tokio::main]
@@ -163,22 +182,56 @@ async fn main() -> Result<()> {
         }
     });
 
+    // Optional QUIC firehose listener. Bound to its own UDP port
+    // alongside the TCP firehose; both can be live at once.
+    let quic_handle = if args.quic {
+        use tak_server::firehose_quic::{self, CertSource};
+        let cert_source = match (args.quic_cert.clone(), args.quic_key.clone()) {
+            (Some(cert), Some(key)) => CertSource::PemFiles { cert, key },
+            (None, None) => CertSource::SelfSigned,
+            _ => {
+                warn!(
+                    "--quic-cert and --quic-key must be supplied together; falling back to self-signed"
+                );
+                CertSource::SelfSigned
+            }
+        };
+        let bus = bus.clone();
+        let store = store.clone();
+        let quic_addr = args.listen_quic;
+        info!(addr = %quic_addr, "firehose-quic: bound");
+        #[allow(clippy::disallowed_methods)]
+        Some(tokio::spawn(async move {
+            if let Err(e) = firehose_quic::run(quic_addr, bus, store, persist, cert_source).await {
+                warn!(error = ?e, "firehose-quic loop exited");
+            }
+        }))
+    } else {
+        None
+    };
+
     // Either listener exiting takes the process down — they're co-equal
     // and the operator should restart on either crash.
-    tokio::select! {
-        res = firehose_handle => {
-            if let Err(e) = res {
-                warn!(error = ?e, "firehose join error");
-            }
+    if let Some(quic) = quic_handle {
+        tokio::select! {
+            res = firehose_handle => log_join("firehose", res),
+            res = api_handle => log_join("api", res),
+            res = quic => log_join("firehose-quic", res),
         }
-        res = api_handle => {
-            if let Err(e) = res {
-                warn!(error = ?e, "api join error");
-            }
+    } else {
+        tokio::select! {
+            res = firehose_handle => log_join("firehose", res),
+            res = api_handle => log_join("api", res),
         }
     }
 
     Ok(())
+}
+
+fn log_join(name: &str, res: Result<(), tokio::task::JoinError>) {
+    if let Err(e) = res {
+        warn!(name, error = ?e, "join error");
+    }
 }
 
 /// Linux-only shim for the compio firehose runtime. On non-Linux

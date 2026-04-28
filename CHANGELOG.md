@@ -24,6 +24,21 @@ Internal milestones (M0–M5) and the issues that close them are referenced inli
 - **`tak-server --no-persist` flag** (env: `TAK_NO_PERSIST=true`) skips the
   persistence side-channel entirely. Used to measure pure dispatch
   throughput against an upstream Java server with persistence disabled.
+- **QUIC firehose listener** (`tak-server --quic`, default off). Binds a
+  `quinn` endpoint on UDP/8090 with rustls TLS 1.3 + ALPN
+  `tak-firehose/1`. One bidirectional stream per connection carrying
+  the same `0xBF <varint> <protobuf>` framing as `stcp`. Self-signed
+  RSA cert generated at startup via `rcgen` for bench convenience;
+  `--quic-cert`/`--quic-key` accept real chains. Independent of the
+  TCP firehose — both can run side-by-side.
+- **`taktool loadgen --quic`** drives the QUIC listener. Bench-only
+  insecure cert verifier (trusts everything) so the orchestrator
+  doesn't need a CA store. v0 measurement: 23 917 msg/s sustained at
+  500 conn × 50 msg/s × 60 s, 0 errors, 1 300 % CPU on the server.
+  On loopback QUIC underperforms TCP — its win (mobile reconnect
+  resilience, 0-RTT resume, per-stream HOL freedom) is invisible on
+  a single host. We ship it opt-in for operators who care about
+  WAN-side ATAK fleet behaviour. See `docs/perf-comparison.md` §3.1.b.
 - **First real Java upstream comparison.** `scripts/bench-java-baseline.sh`
   drives the `pvarki/takserver` (community-maintained build of the
   upstream open-source TAK Server 5.7-RELEASE-8) through the same

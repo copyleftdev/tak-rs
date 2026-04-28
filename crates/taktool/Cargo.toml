@@ -17,6 +17,10 @@ prost              .workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "net", "time", "sync", "io-util", "signal"] }
 tak-cot            .workspace = true
 
+# QUIC loadgen driver — opt-in via `taktool loadgen --quic`.
+quinn  .workspace = true
+rustls .workspace = true
+
 # io_uring driver — Linux-only, opt-in via `taktool loadgen --uring`.
 [target.'cfg(target_os = "linux")'.dependencies]
 tokio-uring = "0.5"

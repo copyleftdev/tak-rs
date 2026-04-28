@@ -1,0 +1,10 @@
+{
+  "loadgen": {"tag":"rust-quic-500x50","target":"127.0.0.1:20390","driver":"quic","connections":500,"rate":50,"duration":60,"mix":"Realistic","elapsed_s":60.102759275,"sent_total":1437506,"bytes_total":535277784,"msg_per_s":23917.470967059857,"mb_per_s":8.49346487418239,"pli":1006106,"chat":287594,"detail":143806,"errors":0},
+  "system": {
+    "target_pid": "2728747",
+    "samples": 51,
+    "peak_cpu_pct": 1300,
+    "max_rss_mb": 155
+  },
+  "captured_at": "2026-04-28T16-46-44Z"
+}
