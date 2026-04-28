@@ -120,6 +120,8 @@ tak-mission     = { path = "crates/tak-mission",     version = "0.0.1" }
 tak-config      = { path = "crates/tak-config",      version = "0.0.1" }
 tak-plugin-api  = { path = "crates/tak-plugin-api",  version = "0.0.1" }
 tak-plugin-host = { path = "crates/tak-plugin-host", version = "0.0.1" }
+tak-server      = { path = "crates/tak-server",      version = "0.0.1" }
+tak-conformance = { path = "crates/tak-conformance", version = "0.0.1" }
 
 # --- dev / test (Hughes property tests, Greef DST, Beck TDD) ---
 proptest    = "1"

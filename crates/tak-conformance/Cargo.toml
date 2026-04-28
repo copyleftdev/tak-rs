@@ -1,0 +1,36 @@
+[package]
+name         = "tak-conformance"
+description  = "Conformance test harness — proves tak-rs speaks ATAK's wire protocol byte-correctly."
+version      .workspace = true
+edition      .workspace = true
+rust-version .workspace = true
+license      .workspace = true
+authors      .workspace = true
+repository   .workspace = true
+
+# Library so external test runners (CI, soak harness, real-ATAK
+# diff harness) can drive scenarios. The crate also has its own
+# `tests/` to run the implemented scenarios under `cargo nextest`.
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+tokio       .workspace = true
+bytes       .workspace = true
+anyhow      .workspace = true
+thiserror   .workspace = true
+prost       .workspace = true
+tracing     .workspace = true
+
+tak-cot     .workspace = true
+tak-bus     .workspace = true
+tak-store   .workspace = true
+tak-server  .workspace = true
+
+# server.rs boots a real Postgres testcontainer at scenario start —
+# it's the conformance contract, not a test concern, so this is a
+# regular dep not a dev-dep.
+testcontainers .workspace = true
+
+[lints]
+workspace = true

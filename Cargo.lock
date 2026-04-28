@@ -4415,6 +4415,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "tak-conformance"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "bytes",
+ "prost",
+ "tak-bus",
+ "tak-cot",
+ "tak-proto",
+ "tak-server",
+ "tak-store",
+ "testcontainers",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "tak-cot"
 version = "0.0.1"
 dependencies = [
