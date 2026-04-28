@@ -4549,6 +4549,7 @@ dependencies = [
  "quinn",
  "rcgen",
  "rustls",
+ "serde",
  "socket2 0.5.10",
  "sqlx",
  "tak-bus",
@@ -4562,8 +4563,10 @@ dependencies = [
  "thiserror 2.0.18",
  "tokio",
  "tokio-rustls",
+ "toml 0.8.23",
  "tracing",
  "tracing-subscriber",
+ "x509-parser",
 ]
 
 [[package]]

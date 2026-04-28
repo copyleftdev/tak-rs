@@ -54,11 +54,13 @@ pub enum PersistMode {
     Off,
 }
 
-/// Group bitvector with every bit set — used as the v0 "no auth, no
-/// filter" mask. Both the per-connection [`Filter::group_mask`] and
-/// the inbound `sender_groups` use this so [`GroupBitvector::intersects`]
-/// always returns true.
-const ALL_GROUPS: GroupBitvector = GroupBitvector([!0u64; 4]);
+/// Group bitvector with every bit set. Used as the no-policy
+/// fallback for the plain TCP firehose (bench/lab compatibility),
+/// the plugin-replay drainer (no peer cert to map from), and any
+/// path where group filtering hasn't been wired through yet. The
+/// mTLS firehose passes a cert-derived bitvector via
+/// [`crate::group_policy::resolve_groups`] instead.
+pub const ALL_GROUPS: GroupBitvector = GroupBitvector([!0u64; 4]);
 
 /// Per-connection read buffer initial capacity. Sized for ~10 PLI
 /// frames worth of fixture data.
@@ -132,18 +134,18 @@ pub async fn run(
 /// Per-connection flow:
 /// 1. Accept TCP + run TLS handshake via [`accept_tls`]
 ///    (handshake failure logs + drops; no `unsafe`-ly accepted bytes).
-/// 2. Extract the client cert chain; log Subject DN at INFO so
+/// 2. Extract the client cert chain; log Subject DN at debug so
 ///    operators can correlate firehose activity to a specific
 ///    cert.
-/// 3. Hand the now-encrypted stream to the same per-connection
-///    driver as plain TCP — same bus subscription, same replay,
-///    same plugin pipeline.
-///
-/// Group-policy mapping (turning the cert's CN/OUs into a
-/// [`GroupBitvector`]) is **not** wired here yet; every authed
-/// TLS connection still subscribes with `ALL_GROUPS`. That's the
-/// next punch-list item; this commit is the prerequisite that
-/// gives us cryptographic peer identity to map *from*.
+/// 3. Resolve the connection's [`GroupBitvector`] via
+///    [`crate::group_policy::resolve_groups`] against `policy`.
+///    A cert with no matching OUs ends up with an empty
+///    bitvector — that connection sees nothing and its
+///    publishes reach nothing (secure default).
+/// 4. Hand the now-encrypted stream + bitvector to the same
+///    per-connection driver as plain TCP — same bus
+///    subscription, same replay, same plugin pipeline, but the
+///    group-mask filter is now real.
 ///
 /// # Errors
 ///
@@ -159,6 +161,7 @@ pub async fn run_tls(
     persist: PersistMode,
     plugin_host: Option<Arc<PluginHost>>,
     replay_window: Option<std::time::Duration>,
+    policy: Arc<crate::group_policy::GroupPolicy>,
 ) -> Result<()> {
     let connection_id = Arc::new(AtomicU64::new(0));
     info!(
@@ -186,13 +189,33 @@ pub async fn run_tls(
             .peer_dn()
             .unwrap_or_else(|_| "<no-peer-dn>".to_owned());
         let peer_addr = authed.peer_addr;
+        let groups = crate::group_policy::resolve_groups(authed.peer_certs(), &policy);
+        // Surface the resolved bitvector at info so operators can
+        // confirm a cert mapped to the right team without enabling
+        // debug logging for the whole firehose. Fail-secure case
+        // (empty bitvector) is logged loudly.
+        if groups == GroupBitvector::EMPTY {
+            warn!(
+                conn = id,
+                peer = %peer_addr,
+                %peer_dn,
+                "firehose-tls: cert resolved to empty group bitvector — connection will see nothing"
+            );
+        } else {
+            info!(
+                conn = id,
+                peer = %peer_addr,
+                %peer_dn,
+                groups = ?groups,
+                "firehose-tls: accepted"
+            );
+        }
 
         let bus = bus.clone();
         let store = store.clone();
         let plugin_host = plugin_host.clone();
         #[allow(clippy::disallowed_methods)]
         tokio::spawn(async move {
-            debug!(conn = id, peer = %peer_addr, %peer_dn, "firehose-tls: accepted");
             // tokio::io::split for TlsStream — Mutex-backed but
             // mandated by the TLS state machine being duplex.
             let (read, write) = tokio::io::split(tls_stream);
@@ -205,6 +228,7 @@ pub async fn run_tls(
                 persist,
                 plugin_host,
                 replay_window,
+                groups,
             )
             .await;
             debug!(conn = id, "firehose-tls: closed");
@@ -223,6 +247,9 @@ async fn handle_connection(
     replay_window: Option<std::time::Duration>,
 ) {
     let (read, write) = sock.into_split();
+    // Plain TCP carries no peer identity, so it gets ALL_GROUPS by
+    // design. Production should use `--listen-cot-tls` so a real
+    // cert resolves to a real bitvector via the group policy.
     drive_connection(
         id,
         read,
@@ -232,6 +259,7 @@ async fn handle_connection(
         persist,
         plugin_host,
         replay_window,
+        ALL_GROUPS,
     )
     .await;
 }
@@ -242,6 +270,15 @@ async fn handle_connection(
 /// (Mutex-backed, slower than `OwnedReadHalf` but unavoidable for
 /// the duplex TLS state machine; acceptable since the AEAD encrypt
 /// path already dominates per-byte cost on TLS).
+///
+/// `sender_groups` is the connection's resolved [`GroupBitvector`].
+/// It's used **on both ends**: as the subscription's `group_mask`
+/// (events from senders not intersecting these groups don't reach
+/// this client) **and** as the publisher's `sender_groups` on
+/// every dispatched event (events this client publishes are only
+/// delivered to subs whose mask intersects). The symmetry is the
+/// load-bearing security property — asymmetric filtering would
+/// let a Cyan publisher leak to Red subscribers.
 #[allow(clippy::too_many_arguments)]
 async fn drive_connection<R, W>(
     id: u64,
@@ -252,12 +289,13 @@ async fn drive_connection<R, W>(
     persist: PersistMode,
     plugin_host: Option<Arc<PluginHost>>,
     replay_window: Option<std::time::Duration>,
+    sender_groups: GroupBitvector,
 ) where
     R: AsyncRead + Unpin + Send + 'static,
     W: AsyncWrite + Unpin + Send + 'static,
 {
     let filter = Filter {
-        group_mask: ALL_GROUPS,
+        group_mask: sender_groups,
         ..Filter::default()
     };
     let (handle, rx) = bus.subscribe(filter);
@@ -303,7 +341,17 @@ async fn drive_connection<R, W>(
         }
     }
 
-    if let Err(e) = read_loop(id, read, &bus, &store, persist, plugin_host.as_deref()).await {
+    if let Err(e) = read_loop(
+        id,
+        read,
+        &bus,
+        &store,
+        persist,
+        plugin_host.as_deref(),
+        sender_groups,
+    )
+    .await
+    {
         debug!(conn = id, error = ?e, "firehose: reader exit");
     }
 
@@ -319,6 +367,7 @@ async fn drive_connection<R, W>(
 /// front of the buffer over to the dispatch path as a `Bytes` with no
 /// memcpy. The proto payload slice is re-derived from the now-detached
 /// frame and decoded in place.
+#[allow(clippy::too_many_arguments)]
 async fn read_loop<R>(
     id: u64,
     mut read: R,
@@ -326,6 +375,7 @@ async fn read_loop<R>(
     store: &Store,
     persist: PersistMode,
     plugin_host: Option<&PluginHost>,
+    sender_groups: GroupBitvector,
 ) -> Result<()>
 where
     R: AsyncRead + Unpin + Send,
@@ -372,7 +422,7 @@ where
                     // (H3); the plugin worker pool drops on full
                     // queue without back-pressuring dispatch.
                     if let Some(host) = plugin_host
-                        && let Some(event) = build_plugin_event(&msg, framed.clone(), ALL_GROUPS)
+                        && let Some(event) = build_plugin_event(&msg, framed.clone(), sender_groups)
                     {
                         let _ = host.publish(event);
                     }
@@ -382,7 +432,7 @@ where
                                 bus,
                                 store,
                                 &msg,
-                                ALL_GROUPS,
+                                sender_groups,
                                 framed,
                                 &mut scratch,
                             );
@@ -391,7 +441,7 @@ where
                             let _ = pipeline::dispatch_only(
                                 bus,
                                 &msg,
-                                ALL_GROUPS,
+                                sender_groups,
                                 framed,
                                 &mut scratch,
                             );

@@ -68,6 +68,14 @@ struct Args {
     #[arg(long, env = "TAK_TLS_TRUSTSTORE_CA")]
     tls_truststore_ca: Option<std::path::PathBuf>,
 
+    /// TOML file mapping cert OUs to bus group bits (see
+    /// `crates/tak-server/src/group_policy.rs`). Only the mTLS
+    /// firehose consumes this; plain TCP always uses ALL_GROUPS.
+    /// Unset = empty policy = every TLS connection gets an empty
+    /// bitvector and sees nothing (fail-secure default).
+    #[arg(long, env = "TAK_GROUP_POLICY")]
+    group_policy: Option<std::path::PathBuf>,
+
     /// Mission API listen address.
     #[arg(long, env = "TAK_LISTEN_API", default_value = "0.0.0.0:8080")]
     listen_api: SocketAddr,
@@ -330,12 +338,42 @@ async fn main() -> Result<()> {
         ));
     }
 
+    // Group-policy load. Empty path = empty policy = TLS conns
+    // see nothing (secure default; the operator must provide a
+    // mapping for any traffic to flow). Plain TCP unaffected
+    // (it bypasses the policy and uses ALL_GROUPS).
+    let policy = match args.group_policy.as_ref() {
+        Some(path) => match tak_server::group_policy::GroupPolicy::load_from_path(path) {
+            Ok(p) => {
+                info!(path = %path.display(), entries = p.ou_to_bit.len(), "group policy: loaded");
+                std::sync::Arc::new(p)
+            }
+            Err(e) => {
+                warn!(path = %path.display(), error = ?e, "group policy: load failed; using empty policy");
+                std::sync::Arc::new(tak_server::group_policy::GroupPolicy::default())
+            }
+        },
+        None => {
+            info!("group policy: --group-policy unset; TLS connections will see nothing");
+            std::sync::Arc::new(tak_server::group_policy::GroupPolicy::default())
+        }
+    };
+
     // Optional mTLS firehose listener. Production deployments
     // should run THIS, not the plain TCP firehose, since ATAK
     // requires a client cert chain matching the truststore CA.
     // Plain firehose stays bound for bench compatibility.
     let tls_handle = if !args.listen_cot_tls.is_empty() {
-        match boot_tls_firehose(&args, bus.clone(), store.clone(), persist, replay_window).await {
+        match boot_tls_firehose(
+            &args,
+            bus.clone(),
+            store.clone(),
+            persist,
+            replay_window,
+            policy,
+        )
+        .await
+        {
             Ok(handle) => Some(handle),
             Err(e) => {
                 warn!(error = ?e, "firehose-tls: bootstrap failed; continuing without mTLS");
@@ -406,12 +444,14 @@ async fn main() -> Result<()> {
 /// bind the mTLS firehose listener, and spawn its accept loop.
 ///
 /// Returns the spawned task's handle so `main` can `select!` on it.
+#[allow(clippy::too_many_arguments)]
 async fn boot_tls_firehose(
     args: &Args,
     bus: std::sync::Arc<Bus>,
     store: Store,
     persist: PersistMode,
     replay_window: Option<std::time::Duration>,
+    policy: std::sync::Arc<tak_server::group_policy::GroupPolicy>,
 ) -> Result<tokio::task::JoinHandle<()>> {
     let cert = args
         .tls_cert
@@ -458,8 +498,17 @@ async fn boot_tls_firehose(
 
     #[allow(clippy::disallowed_methods)]
     let handle = tokio::spawn(async move {
-        if let Err(e) =
-            firehose::run_tls(listener, acceptor, bus, store, persist, None, replay_window).await
+        if let Err(e) = firehose::run_tls(
+            listener,
+            acceptor,
+            bus,
+            store,
+            persist,
+            None,
+            replay_window,
+            policy,
+        )
+        .await
         {
             warn!(error = ?e, "firehose-tls loop exited");
         }
