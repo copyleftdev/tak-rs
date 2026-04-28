@@ -8,23 +8,14 @@ license      .workspace = true
 authors      .workspace = true
 repository   .workspace = true
 
+# Scaffold: only logs version + warn. Sub-crate deps land as their listeners
+# / endpoints come online; see issues #16, #19, #34, etc.
 [dependencies]
 tokio              .workspace = true
 tracing            .workspace = true
 tracing-subscriber .workspace = true
-metrics            .workspace = true
-metrics-exporter-prometheus .workspace = true
 anyhow             .workspace = true
-clap               .workspace = true
 mimalloc           .workspace = true
-
-tak-cot     .workspace = true
-tak-proto   .workspace = true
-tak-net     .workspace = true
-tak-bus     .workspace = true
-tak-store   .workspace = true
-tak-mission .workspace = true
-tak-config  .workspace = true
 
 [[bin]]
 name = "tak-server"

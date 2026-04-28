@@ -48,6 +48,8 @@ protoc-bin-vendored = "3"
 # --- xml (BurntSushi-grade fast parsing via quick-xml borrowed mode) ---
 quick-xml   = { version = "0.36", features = ["serialize"] }
 memchr      = "2"
+# roxmltree was evaluated against quick-xml in issue #2 and lost decisively
+# (3.3-4.1× slower; see docs/decisions/0001-codec-parser.md). Banned in deny.toml.
 
 # --- storage (Pavlo: real Postgres + PostGIS, sqlx compile-time SQL) ---
 sqlx        = { version = "0.8", default-features = false, features = ["runtime-tokio-rustls", "postgres", "macros", "uuid", "json"] }

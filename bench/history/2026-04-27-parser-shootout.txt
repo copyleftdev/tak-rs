@@ -1,0 +1,26 @@
+# XML parser shootout — quick-xml borrowed vs roxmltree
+# Issue #2 / docs/decisions/0001-codec-parser.md
+# Host: localhost  Date: 2026-04-27  cargo: 1.95.0  rustc: 1.95.0
+# Pinned core via `taskset -c 0`.
+# Profile: bench (release + lto=fat + codegen-units=1, debuginfo on)
+# criterion: --warm-up-time 1 --measurement-time 3 --sample-size 50
+
+parse_xml/quick_xml/01_pli       time:  [933.69 ns 939.60 ns 945.57 ns]
+parse_xml/roxmltree/01_pli       time:  [3.1071 µs 3.1235 µs 3.1399 µs]
+parse_xml/quick_xml/02_chat      time:  [1.1263 µs 1.1312 µs 1.1362 µs]
+parse_xml/roxmltree/02_chat      time:  [3.6613 µs 3.6834 µs 3.7094 µs]
+parse_xml/quick_xml/03_geofence  time:  [1.1101 µs 1.1142 µs 1.1176 µs]
+parse_xml/roxmltree/03_geofence  time:  [3.8178 µs 3.8320 µs 3.8471 µs]
+parse_xml/quick_xml/04_route     time:  [1.2825 µs 1.2881 µs 1.2932 µs]
+parse_xml/roxmltree/04_route     time:  [5.3067 µs 5.3237 µs 5.3401 µs]
+parse_xml/quick_xml/05_drawing   time:  [1.2255 µs 1.2306 µs 1.2356 µs]
+parse_xml/roxmltree/05_drawing   time:  [4.1254 µs 4.1449 µs 4.1673 µs]
+
+# Ratios (rox / qx, median)
+# 01_pli        3.32×
+# 02_chat       3.26×
+# 03_geofence   3.44×
+# 04_route      4.13×
+# 05_drawing    3.37×
+
+# Decision: quick-xml. roxmltree banned in deny.toml.

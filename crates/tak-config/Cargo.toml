@@ -8,9 +8,8 @@ license      .workspace = true
 authors      .workspace = true
 repository   .workspace = true
 
+# Stub: only Error enum today. Parser deps land when implemented.
 [dependencies]
-quick-xml  .workspace = true
-serde      .workspace = true
 thiserror  .workspace = true
 
 [lints]

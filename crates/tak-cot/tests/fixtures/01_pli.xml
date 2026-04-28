@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<event version="2.0" uid="ANDROID-deadbeef0001" type="a-f-G-U-C" time="2026-04-27T05:00:00.000Z" start="2026-04-27T05:00:00.000Z" stale="2026-04-27T05:01:30.000Z" how="m-g">
+  <point lat="34.225700" lon="-118.573900" hae="245.000000" ce="9.000000" le="9999999.000000"/>
+  <detail>
+    <takv os="29" version="4.10.0.4" device="GOOGLE PIXEL 6" platform="ATAK-CIV"/>
+    <contact callsign="VIPER01" endpoint="*:-1:stcp"/>
+    <uid Droid="VIPER01"/>
+    <__group name="Cyan" role="Team Member"/>
+    <status battery="78"/>
+    <track speed="0.512345" course="180.000000"/>
+    <precisionlocation altsrc="GPS" geopointsrc="GPS"/>
+  </detail>
+</event>

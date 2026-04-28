@@ -40,8 +40,18 @@
       "Bash(cargo metadata*)",
       "Bash(cargo doc*)",
       "Bash(cargo expand*)",
+      "Bash(cargo update*)",
+      "Bash(cargo install --locked cargo-deny)",
+      "Bash(cargo install --locked cargo-nextest)",
+      "Bash(cargo install --locked cargo-machete)",
+      "Bash(cargo install --locked cargo-fuzz)",
+      "Bash(cargo install --locked cargo-llvm-cov)",
       "Bash(cargo run -p taktool*)",
       "Bash(cargo run -p tak-server*)",
+      "Bash(gh issue*)",
+      "Bash(gh label*)",
+      "Bash(gh repo view*)",
+      "Bash(gh api*)",
       "Bash(rustfmt*)",
       "Bash(rustc --version)",
       "Bash(rustup show)",
@@ -67,8 +77,7 @@
       "Bash(rm -rf /*)",
       "Bash(rm -rf ~/*)",
       "Bash(git push --force*)",
-      "Bash(git reset --hard origin/*)",
-      "Bash(cargo install*)"
+      "Bash(git reset --hard origin/*)"
     ]
   }
 }

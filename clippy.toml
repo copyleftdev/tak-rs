@@ -30,11 +30,17 @@ disallowed-methods = [
 # Disallow these types in lib code. This catches DIRECT use; transitive
 # pulls of chrono/time/lazy_static (unavoidable via sqlx, x509-parser, etc.)
 # are not flagged here — that's the right division of labor.
+# `allow-invalid` lets us list paths that may not be in scope today (they
+# come into scope only if someone adds the offending crate as a direct dep).
 disallowed-types = [
-    { path = "std::time::SystemTime", reason = "use jiff::Timestamp for wall-clock time (invariant D3)" },
-    { path = "chrono::DateTime",      reason = "use jiff (invariant D3)" },
-    { path = "chrono::NaiveDateTime", reason = "use jiff (invariant D3)" },
-    { path = "time::OffsetDateTime",  reason = "use jiff (invariant D3)" },
-    { path = "time::PrimitiveDateTime", reason = "use jiff (invariant D3)" },
-    { path = "lazy_static::lazy_static", reason = "use std::sync::OnceLock or LazyLock" },
+    { path = "std::time::SystemTime",   reason = "use jiff::Timestamp (invariant D3)" },
+    { path = "chrono::DateTime",        reason = "use jiff (invariant D3)", allow-invalid = true },
+    { path = "chrono::NaiveDateTime",   reason = "use jiff (invariant D3)", allow-invalid = true },
+    { path = "time::OffsetDateTime",    reason = "use jiff (invariant D3)", allow-invalid = true },
+    { path = "time::PrimitiveDateTime", reason = "use jiff (invariant D3)", allow-invalid = true },
+]
+
+# `lazy_static!` is a macro, not a type — clippy gates these separately.
+disallowed-macros = [
+    { path = "lazy_static::lazy_static", reason = "use std::sync::OnceLock or LazyLock", allow-invalid = true },
 ]

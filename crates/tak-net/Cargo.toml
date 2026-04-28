@@ -8,27 +8,8 @@ license      .workspace = true
 authors      .workspace = true
 repository   .workspace = true
 
+# Stub: only port constants today. Deps come back when listeners land (M1).
 [dependencies]
-tokio          .workspace = true
-tokio-util     .workspace = true
-bytes          .workspace = true
-rustls            .workspace = true
-tokio-rustls      .workspace = true
-rustls-pki-types  .workspace = true
-socket2           .workspace = true
-x509-parser    .workspace = true
-tracing        .workspace = true
-thiserror      .workspace = true
-tak-cot        .workspace = true
-tak-proto      .workspace = true
-
-[features]
-default = []
-quic    = ["dep:quinn"]
-
-[dependencies.quinn]
-workspace = true
-optional  = true
 
 [lints]
 workspace = true

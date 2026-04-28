@@ -9,14 +9,9 @@ authors      .workspace = true
 repository   .workspace = true
 
 [dependencies]
-tokio              .workspace = true
-clap               .workspace = true
-anyhow             .workspace = true
-tracing            .workspace = true
-tracing-subscriber .workspace = true
-
-tak-cot   .workspace = true
-tak-proto .workspace = true
+clap    .workspace = true
+anyhow  .workspace = true
+tak-cot .workspace = true
 
 [[bin]]
 name = "taktool"

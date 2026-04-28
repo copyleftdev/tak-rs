@@ -8,27 +8,11 @@ license      .workspace = true
 authors      .workspace = true
 repository   .workspace = true
 
+# Stub: only GroupBitvector today. Deps come back when registry + dispatch land (M2).
 [dependencies]
-tokio        .workspace = true
-bytes        .workspace = true
-dashmap      .workspace = true
-parking_lot  .workspace = true
-rstar        .workspace = true
-sharded-slab .workspace = true
-smallvec     .workspace = true
-ahash        .workspace = true
-arc-swap     .workspace = true
-tracing      .workspace = true
-metrics      .workspace = true
-thiserror    .workspace = true
-tak-cot      .workspace = true
-tak-proto    .workspace = true
 
 [dev-dependencies]
-proptest  .workspace = true
-criterion .workspace = true
-loom      .workspace = true
-dhat      .workspace = true
+criterion  .workspace = true
 
 [lints]
 workspace = true

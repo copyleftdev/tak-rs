@@ -85,8 +85,9 @@ deny = [
     { name = "async-std", reason = "use tokio (invariant: single runtime)" },
     { name = "smol",      reason = "use tokio" },
 
-    # XML — quick-xml only.
-    { name = "xml-rs", reason = "use quick-xml" },
+    # XML — quick-xml only (decision: docs/decisions/0001-codec-parser.md).
+    { name = "xml-rs",    reason = "use quick-xml" },
+    { name = "roxmltree", reason = "lost the parser shootout 3.3-4.1× to quick-xml; see docs/decisions/0001-codec-parser.md" },
 ]
 
 # multiple-versions skips for crates we accept being pinned-elsewhere by

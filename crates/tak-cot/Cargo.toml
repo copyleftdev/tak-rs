@@ -9,9 +9,6 @@ authors      .workspace = true
 repository   .workspace = true
 
 [dependencies]
-bytes      .workspace = true
-quick-xml  .workspace = true
-memchr     .workspace = true
 thiserror  .workspace = true
 prost      .workspace = true
 tak-proto  .workspace = true
@@ -20,6 +17,7 @@ tak-proto  .workspace = true
 proptest   .workspace = true
 insta      .workspace = true
 criterion  .workspace = true
+quick-xml  .workspace = true   # parser-shootout winner; will move to [dependencies] when Codec::decode_xml lands
 
 [lints]
 workspace = true
