@@ -29,7 +29,7 @@
 //!     group_mask: GroupBitvector::EMPTY.with_bit(3),
 //!     ..Filter::default()
 //! };
-//! let handle = bus.subscribe(filter);
+//! let (handle, _rx) = bus.subscribe(filter);
 //! assert_eq!(bus.len(), 1);
 //! drop(handle);
 //! assert_eq!(bus.len(), 0);
@@ -49,11 +49,18 @@
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Weak};
 
+use bytes::Bytes;
 use parking_lot::RwLock;
 use sharded_slab::Slab;
+use tokio::sync::mpsc;
 
+pub mod dispatch;
 pub mod index;
+pub use dispatch::{DispatchScratch, DispatchStats, Inbound};
 pub use index::{GeoBbox, GeoIndex, TypeIndex};
+
+/// Default capacity for per-subscription outbound channels (invariant H5).
+pub const DEFAULT_SUBSCRIBER_CAPACITY: usize = 1024;
 
 // ---------------------------------------------------------------------------
 // GroupBitvector — invariant H4
@@ -138,11 +145,14 @@ pub struct Filter {
 /// Stored per-subscription state. Internals only — public API hands out
 /// [`SubscriptionHandle`] which references this opaquely.
 #[derive(Debug)]
-struct Entry {
-    filter: Filter,
+pub(crate) struct Entry {
+    pub(crate) filter: Filter,
     /// Generation tag, set on insert; used to make [`SubscriptionId`]
     /// unable to alias a freshly-reused slab slot.
-    generation: u64,
+    pub(crate) generation: u64,
+    /// Per-subscription outbound channel. Bounded per invariant H5;
+    /// dispatch uses `try_send` and drops on full.
+    pub(crate) sender: mpsc::Sender<Bytes>,
 }
 
 // ---------------------------------------------------------------------------
@@ -182,33 +192,52 @@ impl Bus {
         })
     }
 
-    /// Register a subscription. Returns a [`SubscriptionHandle`] whose
-    /// `Drop` unsubscribes; keep it alive for the lifetime of the connection.
+    /// Register a subscription with the default channel capacity
+    /// ([`DEFAULT_SUBSCRIBER_CAPACITY`]). Convenience wrapper for
+    /// [`Self::subscribe_with_capacity`].
     #[must_use]
     #[allow(clippy::needless_pass_by_value)] // by-value matches caller intent (we own it now)
-    pub fn subscribe(self: &Arc<Self>, filter: Filter) -> SubscriptionHandle {
-        let generation = self.next_generation.fetch_add(1, Ordering::Relaxed);
+    pub fn subscribe(
+        self: &Arc<Self>,
+        filter: Filter,
+    ) -> (SubscriptionHandle, mpsc::Receiver<Bytes>) {
+        self.subscribe_with_capacity(filter, DEFAULT_SUBSCRIBER_CAPACITY)
+    }
 
-        // Insert into the storage slab first so we have an id to index by.
+    /// Register a subscription with an explicit per-channel capacity.
+    /// Returns a [`SubscriptionHandle`] (Drop unsubscribes) and the
+    /// `Receiver` end of the per-subscription bounded mpsc.
+    #[must_use]
+    #[allow(clippy::needless_pass_by_value)]
+    pub fn subscribe_with_capacity(
+        self: &Arc<Self>,
+        filter: Filter,
+        capacity: usize,
+    ) -> (SubscriptionHandle, mpsc::Receiver<Bytes>) {
+        let generation = self.next_generation.fetch_add(1, Ordering::Relaxed);
+        let (tx, rx) = mpsc::channel(capacity);
+
         let entry = Entry {
             filter: filter.clone(),
             generation,
+            sender: tx,
         };
         let key = match self.subs.insert(entry) {
             Some(k) => k,
             None => {
-                // The default sharded_slab config caps at usize::MAX which is
-                // effectively unreachable; if we ever hit this in practice it
-                // means a custom Config was used and is exhausted. Return a
-                // sentinel handle that's a no-op on Drop — better than panic
-                // in lib code (D1).
-                return SubscriptionHandle {
-                    id: SubscriptionId {
-                        slab_key: usize::MAX,
-                        generation,
+                // Slab full (only reachable on a custom-cap config that's
+                // exhausted). Lib-deny-panic discipline (D1) — return a
+                // sentinel handle whose Weak is dead.
+                return (
+                    SubscriptionHandle {
+                        id: SubscriptionId {
+                            slab_key: usize::MAX,
+                            generation,
+                        },
+                        bus: Weak::new(),
                     },
-                    bus: Weak::new(),
-                };
+                    rx,
+                );
             }
         };
         let id = SubscriptionId {
@@ -229,10 +258,13 @@ impl Bus {
 
         self.live.fetch_add(1, Ordering::Relaxed);
 
-        SubscriptionHandle {
-            id,
-            bus: Arc::downgrade(self),
-        }
+        (
+            SubscriptionHandle {
+                id,
+                bus: Arc::downgrade(self),
+            },
+            rx,
+        )
     }
 
     /// Look up a subscription's filter by id, if still live. Returns `None`
@@ -394,7 +426,7 @@ mod tests {
     fn subscribe_then_drop_removes_entry() {
         let bus = Bus::new();
         assert_eq!(bus.len(), 0);
-        let h = bus.subscribe(flt("ANDROID-1"));
+        let (h, _rx) = bus.subscribe(flt("ANDROID-1"));
         assert_eq!(bus.len(), 1);
         drop(h);
         assert_eq!(bus.len(), 0);
@@ -403,9 +435,9 @@ mod tests {
     #[test]
     fn multiple_subs_get_distinct_ids() {
         let bus = Bus::new();
-        let h1 = bus.subscribe(flt("a"));
-        let h2 = bus.subscribe(flt("b"));
-        let h3 = bus.subscribe(flt("c"));
+        let (h1, _r1) = bus.subscribe(flt("a"));
+        let (h2, _r2) = bus.subscribe(flt("b"));
+        let (h3, _r3) = bus.subscribe(flt("c"));
         assert_ne!(h1.id(), h2.id());
         assert_ne!(h2.id(), h3.id());
         assert_ne!(h1.id(), h3.id());
@@ -415,7 +447,7 @@ mod tests {
     #[test]
     fn get_filter_returns_some_for_live_id() {
         let bus = Bus::new();
-        let h = bus.subscribe(flt("alpha"));
+        let (h, _rx) = bus.subscribe(flt("alpha"));
         let f = bus.get_filter(h.id()).unwrap();
         assert_eq!(f.interest_uid.as_deref(), Some("alpha"));
     }
@@ -423,7 +455,7 @@ mod tests {
     #[test]
     fn get_filter_none_for_dropped_handle() {
         let bus = Bus::new();
-        let h = bus.subscribe(flt("alpha"));
+        let (h, _rx) = bus.subscribe(flt("alpha"));
         let id = h.id();
         drop(h);
         assert!(bus.get_filter(id).is_none());
@@ -435,7 +467,7 @@ mod tests {
         // may reuse the same slab_key, but the gen tag should differ, so
         // the OLD id should still resolve to None.
         let bus = Bus::new();
-        let h1 = bus.subscribe(flt("first"));
+        let (h1, _r1) = bus.subscribe(flt("first"));
         let stale = h1.id();
         drop(h1);
 
@@ -454,7 +486,7 @@ mod tests {
         // to 0), then drop the handle. Should not crash; is_attached() is
         // false.
         let bus = Bus::new();
-        let h = bus.subscribe(flt("orphan"));
+        let (h, _rx) = bus.subscribe(flt("orphan"));
         drop(bus);
         assert!(!h.is_attached());
         // Drop happens at end of scope — should be silent.

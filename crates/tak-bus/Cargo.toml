@@ -13,6 +13,8 @@ sharded-slab .workspace = true
 parking_lot  .workspace = true
 rstar        .workspace = true
 smallvec     .workspace = true
+tokio        .workspace = true
+bytes        .workspace = true
 
 [dev-dependencies]
 criterion .workspace = true

@@ -2457,11 +2457,13 @@ dependencies = [
 name = "tak-bus"
 version = "0.0.1"
 dependencies = [
+ "bytes",
  "criterion",
  "parking_lot",
  "rstar",
  "sharded-slab",
  "smallvec",
+ "tokio",
 ]
 
 [[package]]
