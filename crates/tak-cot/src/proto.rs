@@ -21,6 +21,7 @@
 
 use crate::xml::{CotEventView, DetailChild, DetailView};
 use crate::{Error, Result, xml};
+use std::io::{self, Write};
 use tak_proto::v1::{
     Contact, CotEvent, Detail, Group, PrecisionLocation, Status, TakMessage, Takv, Track,
 };
@@ -299,4 +300,163 @@ fn parse_iso8601_ms(s: &str) -> Result<u64> {
 /// behavior of treating malformed numerics as missing data).
 fn parse_f64(s: &str) -> f64 {
     s.parse().unwrap_or(0.0)
+}
+
+// ===========================================================================
+// TakMessage → XML — symmetric inverse of `view_to_takmessage`.
+// ===========================================================================
+
+/// Encode a [`TakMessage`] as CoT XML, writing into `out`.
+///
+/// Typed sub-messages are emitted as their XML equivalents:
+/// `<contact>`, `<__group>`, `<precisionlocation>`, `<status>`, `<takv>`,
+/// `<track>`. After those, `Detail.xml_detail` is appended verbatim — the
+/// caller is responsible for ensuring it is well-formed XML (which our own
+/// `view_to_takmessage` guarantees by construction).
+///
+/// Round-trip property: `view_to_takmessage(decode_xml(s)) → takmessage_to_xml`
+/// produces XML that decodes back to a TakMessage equal to the original
+/// (modulo numeric formatting and the ordering of unconsumed children).
+///
+/// # Errors
+///
+/// - [`Error::Xml`] if `cot_event` is missing or a string field contains an
+///   XML-special character (`<`, `>`, `&`, `"`, `'`).
+/// - [`Error::Io`] if the writer fails.
+pub fn takmessage_to_xml<W: Write>(msg: &TakMessage, out: &mut W) -> Result<()> {
+    let cot = msg
+        .cot_event
+        .as_ref()
+        .ok_or_else(|| Error::Xml("TakMessage missing cot_event".to_owned()))?;
+
+    out.write_all(b"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")?;
+
+    // <event ...>
+    out.write_all(b"<event")?;
+    write_str_attr(out, "version", "2.0")?;
+    write_str_attr(out, "uid", &cot.uid)?;
+    write_str_attr(out, "type", &cot.r#type)?;
+    write_str_attr(out, "time", &format_iso8601(cot.send_time)?)?;
+    write_str_attr(out, "start", &format_iso8601(cot.start_time)?)?;
+    write_str_attr(out, "stale", &format_iso8601(cot.stale_time)?)?;
+    write_str_attr(out, "how", &cot.how)?;
+    write_str_attr_opt(out, "access", &cot.access)?;
+    write_str_attr_opt(out, "qos", &cot.qos)?;
+    write_str_attr_opt(out, "opex", &cot.opex)?;
+    write_str_attr_opt(out, "caveat", &cot.caveat)?;
+    write_str_attr_opt(out, "releaseableTo", &cot.releaseable_to)?;
+    out.write_all(b">\n")?;
+
+    // <point .../>
+    out.write_all(b"  <point")?;
+    write_f64_attr(out, "lat", cot.lat)?;
+    write_f64_attr(out, "lon", cot.lon)?;
+    write_f64_attr(out, "hae", cot.hae)?;
+    write_f64_attr(out, "ce", cot.ce)?;
+    write_f64_attr(out, "le", cot.le)?;
+    out.write_all(b"/>\n")?;
+
+    // <detail>
+    out.write_all(b"  <detail>\n")?;
+    if let Some(d) = &cot.detail {
+        write_typed_subs(out, d)?;
+        if !d.xml_detail.is_empty() {
+            out.write_all(b"    ")?;
+            // xml_detail is markup, not an attribute value — emit verbatim.
+            out.write_all(d.xml_detail.as_bytes())?;
+            out.write_all(b"\n")?;
+        }
+    }
+    out.write_all(b"  </detail>\n")?;
+    out.write_all(b"</event>\n")?;
+    Ok(())
+}
+
+/// Convenience: encode a TakMessage into a fresh `String`.
+pub fn takmessage_to_xml_string(msg: &TakMessage) -> Result<String> {
+    let mut buf = Vec::with_capacity(512);
+    takmessage_to_xml(msg, &mut buf)?;
+    String::from_utf8(buf).map_err(|e| Error::Xml(e.to_string()))
+}
+
+fn write_typed_subs<W: Write>(out: &mut W, d: &Detail) -> Result<()> {
+    if let Some(t) = &d.takv {
+        out.write_all(b"    <takv")?;
+        write_str_attr(out, "device", &t.device)?;
+        write_str_attr(out, "platform", &t.platform)?;
+        write_str_attr(out, "os", &t.os)?;
+        write_str_attr(out, "version", &t.version)?;
+        out.write_all(b"/>\n")?;
+    }
+    if let Some(c) = &d.contact {
+        out.write_all(b"    <contact")?;
+        write_str_attr(out, "endpoint", &c.endpoint)?;
+        write_str_attr(out, "callsign", &c.callsign)?;
+        out.write_all(b"/>\n")?;
+    }
+    if let Some(g) = &d.group {
+        out.write_all(b"    <__group")?;
+        write_str_attr(out, "name", &g.name)?;
+        write_str_attr(out, "role", &g.role)?;
+        out.write_all(b"/>\n")?;
+    }
+    if let Some(s) = &d.status {
+        out.write_all(b"    <status")?;
+        write!(out, " battery=\"{}\"", s.battery)?;
+        out.write_all(b"/>\n")?;
+    }
+    if let Some(t) = &d.track {
+        out.write_all(b"    <track")?;
+        write_f64_attr(out, "speed", t.speed)?;
+        write_f64_attr(out, "course", t.course)?;
+        out.write_all(b"/>\n")?;
+    }
+    if let Some(p) = &d.precision_location {
+        out.write_all(b"    <precisionlocation")?;
+        write_str_attr(out, "geopointsrc", &p.geopointsrc)?;
+        write_str_attr(out, "altsrc", &p.altsrc)?;
+        out.write_all(b"/>\n")?;
+    }
+    Ok(())
+}
+
+#[inline]
+fn write_str_attr<W: Write>(out: &mut W, key: &str, value: &str) -> Result<()> {
+    if let Some(c) = value
+        .chars()
+        .find(|c| matches!(c, '<' | '>' | '&' | '"' | '\''))
+    {
+        return Err(Error::SpecialCharInValue(c));
+    }
+    out.write_all(b" ")?;
+    out.write_all(key.as_bytes())?;
+    out.write_all(b"=\"")?;
+    out.write_all(value.as_bytes())?;
+    out.write_all(b"\"")?;
+    Ok(())
+}
+
+/// Emit `key="value"` only when value is non-empty (proto3 default `String`).
+#[inline]
+fn write_str_attr_opt<W: Write>(out: &mut W, key: &str, value: &str) -> Result<()> {
+    if value.is_empty() {
+        Ok(())
+    } else {
+        write_str_attr(out, key, value)
+    }
+}
+
+#[inline]
+fn write_f64_attr<W: Write>(out: &mut W, key: &str, value: f64) -> io::Result<()> {
+    // Rust's default Display for f64 picks the shortest representation that
+    // round-trips back to the same f64 (Grisu / Ryu). Good enough for CoT.
+    write!(out, " {key}=\"{value}\"")
+}
+
+/// Format an ms-since-epoch `u64` as ISO-8601 / RFC 3339 with 3 decimal seconds.
+fn format_iso8601(ms: u64) -> Result<String> {
+    let signed = i64::try_from(ms).map_err(|_| Error::Xml("timestamp overflow".to_owned()))?;
+    let ts = jiff::Timestamp::from_millisecond(signed)
+        .map_err(|e| Error::Xml(format!("timestamp from_millisecond({ms}): {e}")))?;
+    Ok(ts.strftime("%Y-%m-%dT%H:%M:%S%.3fZ").to_string())
 }
