@@ -242,6 +242,92 @@ async fn read_loop(
     }
 }
 
+/// Periodic logger of the slowest subscribers — the operator-facing
+/// answer to "WHICH client is dropping under load."
+///
+/// Snapshots `Bus::subscription_stats` every `interval`, computes a
+/// drop-rate per subscription against the previous snapshot (so the
+/// number is over the recent window, not since process start), and
+/// emits one INFO-level log line listing the top `top_n` subs by
+/// drop count in that window.
+///
+/// Off the H1 hot path — runs on its own tokio task and only reads
+/// the per-Entry atomics relaxed-style at tick time.
+///
+/// Returns when the bus is dropped (Weak upgrade fails). Spawn this
+/// once per process from [`super::main`] alongside the firehose +
+/// API listeners.
+pub async fn run_subscription_dropwatch(
+    bus: Arc<tak_bus::Bus>,
+    interval: std::time::Duration,
+    top_n: usize,
+) {
+    use std::collections::HashMap;
+
+    use tak_bus::SubscriptionId;
+
+    info!(?interval, top_n, "subscription dropwatch: started");
+    let mut last: HashMap<SubscriptionId, (u64, u64)> = HashMap::new();
+    let mut ticker = tokio::time::interval(interval);
+    // The first tick fires immediately; skip it so the first log
+    // line covers a real window.
+    ticker.tick().await;
+    loop {
+        ticker.tick().await;
+        let snap = bus.subscription_stats();
+        let mut deltas: Vec<(SubscriptionId, u64, u64)> = Vec::with_capacity(snap.len());
+        for s in &snap {
+            let prev = last.get(&s.id).copied().unwrap_or((0, 0));
+            let d_delivered = s.delivered.saturating_sub(prev.0);
+            let d_dropped = s.dropped_full.saturating_sub(prev.1);
+            deltas.push((s.id, d_delivered, d_dropped));
+            last.insert(s.id, (s.delivered, s.dropped_full));
+        }
+
+        let total_delivered: u64 = deltas.iter().map(|d| d.1).sum();
+        let total_dropped: u64 = deltas.iter().map(|d| d.2).sum();
+        let total_attempts = total_delivered + total_dropped;
+        let dropping_subs = deltas.iter().filter(|d| d.2 > 0).count();
+
+        // Sort by drop count in this window, descending.
+        deltas.sort_unstable_by_key(|d| std::cmp::Reverse(d.2));
+        let top: Vec<String> = deltas
+            .iter()
+            .take(top_n)
+            .filter(|d| d.2 > 0)
+            .map(|d| {
+                let attempts = d.1 + d.2;
+                let pct = if attempts > 0 {
+                    #[allow(clippy::cast_precision_loss)]
+                    let r = (d.2 as f64) * 100.0 / (attempts as f64);
+                    r
+                } else {
+                    0.0
+                };
+                format!("sub={:?} dropped={} ({:.1}%)", d.0, d.2, pct)
+            })
+            .collect();
+
+        let delivery_pct = if total_attempts > 0 {
+            #[allow(clippy::cast_precision_loss)]
+            let r = (total_delivered as f64) * 100.0 / (total_attempts as f64);
+            r
+        } else {
+            100.0
+        };
+
+        info!(
+            subs_total = snap.len(),
+            subs_dropping = dropping_subs,
+            window_delivered = total_delivered,
+            window_dropped = total_dropped,
+            delivery_pct = format!("{delivery_pct:.2}"),
+            top = ?top,
+            "subscription dropwatch tick"
+        );
+    }
+}
+
 /// Drain replacement frames produced by plugins (`Action::Replace`)
 /// and re-feed them through the dispatch pipeline.
 ///

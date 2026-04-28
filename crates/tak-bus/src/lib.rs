@@ -105,6 +105,24 @@ impl GroupBitvector {
 // Subscription identity + filter
 // ---------------------------------------------------------------------------
 
+/// Snapshot of one subscription's delivery counters, returned by
+/// [`Bus::subscription_stats`].
+///
+/// Both counters are monotonic since the subscription was registered.
+/// The `id.slab_key` field is **not** populated by
+/// `subscription_stats` (sharded-slab's `unique_iter` doesn't expose
+/// the key); only `generation` is preserved. Callers comparing
+/// two snapshots should match on generation, not slab_key.
+#[derive(Debug, Clone, Copy)]
+pub struct SubscriptionStats {
+    /// The subscription's id. `slab_key` is unset; see struct docs.
+    pub id: SubscriptionId,
+    /// Total successful deliveries since the subscription registered.
+    pub delivered: u64,
+    /// Total `try_send`-Full drops since the subscription registered.
+    pub dropped_full: u64,
+}
+
 /// Stable handle for a registered subscription, returned by [`Bus::subscribe`].
 ///
 /// Uniquely identifies a subscription within a single `Bus`. The internal
@@ -153,6 +171,15 @@ pub(crate) struct Entry {
     /// Per-subscription outbound channel. Bounded per invariant H5;
     /// dispatch uses `try_send` and drops on full.
     pub(crate) sender: mpsc::Sender<Bytes>,
+    /// Total successful `try_send`s into this subscription's channel.
+    /// Hot-path counter — local AtomicU64 so dispatch threads only
+    /// touch the cache line for the subscription they're delivering
+    /// to, not a shared global atomic. Read out via
+    /// [`Bus::subscription_stats`] for observability.
+    pub(crate) delivered: AtomicU64,
+    /// Total `try_send`s that hit `Full`. Same hot-path / cache-line
+    /// rationale as `delivered`.
+    pub(crate) dropped_full: AtomicU64,
 }
 
 // ---------------------------------------------------------------------------
@@ -177,6 +204,13 @@ pub struct Bus {
     geo_index: RwLock<GeoIndex>,
     next_generation: AtomicU64,
     live: AtomicUsize,
+    /// Side-table of live SubscriptionIds. Touched only on
+    /// subscribe/unsubscribe (rare relative to dispatch); read by
+    /// [`Self::subscription_stats`] for the slow observability
+    /// path. Dispatch never touches this — it walks the
+    /// type/geo indices instead, so this lock is never on the
+    /// H1 hot path.
+    live_ids: RwLock<Vec<SubscriptionId>>,
 }
 
 impl Bus {
@@ -189,6 +223,7 @@ impl Bus {
             geo_index: RwLock::new(GeoIndex::default()),
             next_generation: AtomicU64::new(0),
             live: AtomicUsize::new(0),
+            live_ids: RwLock::new(Vec::new()),
         })
     }
 
@@ -221,6 +256,8 @@ impl Bus {
             filter: filter.clone(),
             generation,
             sender: tx,
+            delivered: AtomicU64::new(0),
+            dropped_full: AtomicU64::new(0),
         };
         let key = match self.subs.insert(entry) {
             Some(k) => k,
@@ -257,6 +294,7 @@ impl Bus {
         }
 
         self.live.fetch_add(1, Ordering::Relaxed);
+        self.live_ids.write().push(id);
 
         (
             SubscriptionHandle {
@@ -341,6 +379,38 @@ impl Bus {
         self.len() == 0
     }
 
+    /// Snapshot per-subscription delivery + drop counts.
+    ///
+    /// Walks the side-table of live ids once, reading two relaxed
+    /// atomics per subscription. Off the dispatch hot path — call
+    /// from a periodic observability tick (every few seconds), not
+    /// from per-message work.
+    ///
+    /// Counts are monotonic since the subscription was registered;
+    /// callers compute deltas across two snapshots if they want
+    /// rate-style numbers.
+    #[must_use]
+    pub fn subscription_stats(&self) -> Vec<SubscriptionStats> {
+        let ids = self.live_ids.read();
+        let mut out = Vec::with_capacity(ids.len());
+        for &id in ids.iter() {
+            let Some(entry) = self.subs.get(id.slab_key) else {
+                continue;
+            };
+            // Stale id race: subscription dropped + slot reused
+            // between our `live_ids` snapshot and the slab read.
+            if entry.generation != id.generation {
+                continue;
+            }
+            out.push(SubscriptionStats {
+                id,
+                delivered: entry.delivered.load(Ordering::Relaxed),
+                dropped_full: entry.dropped_full.load(Ordering::Relaxed),
+            });
+        }
+        out
+    }
+
     fn unsubscribe(&self, id: SubscriptionId) {
         // Verify generation and copy out the filter fields we need to
         // remove from the indices, then remove from slab.
@@ -371,6 +441,13 @@ impl Bus {
 
         if self.subs.remove(id.slab_key) {
             self.live.fetch_sub(1, Ordering::Relaxed);
+            // Best-effort drop from the live-ids side table. O(N)
+            // but only fires on unsubscribe (rare), and N is the
+            // live subscription count.
+            let mut ids = self.live_ids.write();
+            if let Some(pos) = ids.iter().position(|&i| i == id) {
+                ids.swap_remove(pos);
+            }
         }
     }
 }

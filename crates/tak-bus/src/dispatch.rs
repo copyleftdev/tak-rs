@@ -16,6 +16,8 @@
 //! (which retains capacity); the dhat alloc test in #26 verifies the
 //! steady-state allocation count is 0.
 
+use std::sync::atomic::Ordering;
+
 use bytes::Bytes;
 use tokio::sync::mpsc::error::TrySendError;
 
@@ -163,9 +165,18 @@ impl Bus {
             // non-blocking; drop policy is "drop for this subscriber"
             // (slow subscribers don't stall fast ones).
             match entry.sender.try_send(msg.payload.clone()) {
-                Ok(()) => stats.delivered = stats.delivered.saturating_add(1),
+                Ok(()) => {
+                    stats.delivered = stats.delivered.saturating_add(1);
+                    // Per-sub counter: relaxed because the read side
+                    // (Bus::subscription_stats) is best-effort and
+                    // doesn't need cross-thread happens-before. One
+                    // atomic add per delivery, on a cache line owned
+                    // by this subscription only.
+                    entry.delivered.fetch_add(1, Ordering::Relaxed);
+                }
                 Err(TrySendError::Full(_)) => {
                     stats.dropped_full = stats.dropped_full.saturating_add(1);
+                    entry.dropped_full.fetch_add(1, Ordering::Relaxed);
                 }
                 Err(TrySendError::Closed(_)) => {
                     stats.dropped_closed = stats.dropped_closed.saturating_add(1);

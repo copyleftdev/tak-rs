@@ -272,6 +272,20 @@ async fn main() -> Result<()> {
         tokio::spawn(firehose::run_plugin_replay(rx, bus, store, persist));
     }
 
+    // Subscription dropwatch: every 10 s, log the top-5 slow
+    // subscribers by drop rate in the window. Process-wide bus
+    // counters live in metrics::counter!; the per-sub view lives
+    // here. Cheap (one slab walk + small sort per tick).
+    {
+        let bus = bus.clone();
+        #[allow(clippy::disallowed_methods)]
+        tokio::spawn(firehose::run_subscription_dropwatch(
+            bus,
+            std::time::Duration::from_secs(10),
+            5,
+        ));
+    }
+
     // Optional QUIC firehose listener. Bound to its own UDP port
     // alongside the TCP firehose; both can be live at once.
     let quic_handle = if args.quic {
