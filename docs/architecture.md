@@ -463,10 +463,14 @@ These need a decision before code lands; flagging now.
    quick-xml is faster but the API is verbose. roxmltree allocates but is
    ergonomic. Benchmark both on a 10kB CoT message before deciding.
 
-5. **Bench harness: what counts as "the firehose"?** Need a synthetic load
-   pattern that matches real ATAK traffic. Probably: 70% PLI updates (small,
-   periodic), 20% chat/markers, 10% large detail blobs. *Action: get a
-   pcap from a real exercise if possible.*
+5. ~~**Bench harness: what counts as "the firehose"?**~~ **Resolved
+   2026-04-28.** Adopt a **70 / 20 / 10** PLI / chat-markers / detail-blobs
+   mix. Sourced from the three public bands (TAK Product Center docs,
+   CivTAK exercise reports, Java upstream's separate PLI metrics path)
+   — see `docs/decisions/0003-firehose-load-mix.md`. The five canonical
+   fixtures in `crates/tak-cot/tests/fixtures/01..05_*.xml` are the bench
+   corpus; #36 wires them into a `taktool` load generator. A real
+   captured exercise pcap is a future refinement, not a blocker.
 
 6. **Where do we draw the line on CoreConfig.xml compatibility?** A
    deployment switching from Java to Rust will hand us their existing
