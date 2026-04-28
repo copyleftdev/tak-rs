@@ -16,13 +16,22 @@ no-default-features = false
 feature-depth = 1
 
 # ---------------------------------------------------------------------------
-# Advisories — vulnerability database. Yanked crates and unmaintained ones fail.
+# Advisories — vulnerability database.
+# Vulnerabilities + yanked = deny. Unmaintained = warn (we track but don't
+# fail builds on transitive crates we can't upgrade unilaterally).
 # ---------------------------------------------------------------------------
 [advisories]
 db-path = "~/.cargo/advisory-db"
 db-urls = ["https://github.com/rustsec/advisory-db"]
 yanked = "deny"
-ignore = []
+ignore = [
+    # time 0.3.45 DoS via stack exhaustion. Pulled in transitively by
+    # x509-parser→der-parser→asn1-rs (which pins old time). Cannot upgrade
+    # unilaterally. Remove once x509-parser bumps to time >= 0.3.47.
+    # Risk: tak-rs only parses time fields from peer certs already verified
+    # by rustls; no untrusted-input path reaches this code.
+    "RUSTSEC-2026-0009",
+]
 
 # ---------------------------------------------------------------------------
 # Licenses — only OSI-approved permissive + MPL-2.0 + Unicode-3.0.
@@ -40,6 +49,8 @@ allow = [
     "Unicode-DFS-2016",
     "Zlib",
     "CC0-1.0",
+    "CDLA-Permissive-2.0",   # webpki-roots (Linux Foundation data license; MIT-equivalent)
+    "OpenSSL",               # ring (boringssl-derived)
 ]
 confidence-threshold = 0.93
 exceptions = []
@@ -54,38 +65,33 @@ highlight = "all"
 workspace-default-features = "allow"
 external-default-features = "allow"
 
+# Bans here = "do not appear in the dep tree at all" (direct or transitive).
+# This list is intentionally small. Direct-dep policy (no chrono/time/log/
+# lazy_static in OUR Cargo.toml) is enforced by clippy::disallowed-types
+# (clippy.toml), the post-edit-cargo hook, and review — not cargo-deny —
+# because those crates are unavoidable transitively.
 deny = [
-    # TLS — we use rustls.
+    # TLS — we use rustls. These should never be transitive in our tree.
     { name = "openssl",     reason = "use rustls (invariant D4)" },
     { name = "openssl-sys", reason = "use rustls (invariant D4)" },
     { name = "native-tls",  reason = "use rustls (invariant D4)" },
 
-    # Time — we use jiff.
-    { name = "chrono", reason = "use jiff (invariant D3)" },
-    { name = "time",   reason = "use jiff (invariant D3)" },
+    # Alternative log frameworks (tracing-log bridges plain `log` for us).
+    { name = "env_logger", reason = "use tracing-subscriber (invariant D5)" },
+    { name = "slog",       reason = "use tracing (invariant D5)" },
+    { name = "log4rs",     reason = "use tracing (invariant D5)" },
 
-    # Logging — we use tracing.
-    { name = "log", reason = "use tracing (invariant D5); transitive use exempt below" },
-    { name = "env_logger", reason = "use tracing-subscriber" },
-
-    # Statics — std now has OnceLock / LazyLock.
-    { name = "lazy_static", reason = "use std::sync::OnceLock or LazyLock" },
+    # Alternative runtimes — tokio only.
+    { name = "async-std", reason = "use tokio (invariant: single runtime)" },
+    { name = "smol",      reason = "use tokio" },
 
     # XML — quick-xml only.
     { name = "xml-rs", reason = "use quick-xml" },
-
-    # Async runtimes — tokio only.
-    { name = "async-std", reason = "use tokio (invariant: single runtime)" },
-    { name = "smol",      reason = "use tokio" },
 ]
 
-# Transitive `log` is everywhere in the ecosystem. Allow it to exist as a transitive
-# dep but not in our direct deps. tracing-log bridges it for us.
-skip = [
-    { name = "log" },  # transitive only — direct use is caught by the deny above (cargo-deny applies the deny to direct AND transitive; remove this once tracing-log bridge is wired)
-]
-
-# Crates that genuinely need a single version pinned across the workspace.
+# multiple-versions skips for crates we accept being pinned-elsewhere by
+# transitive deps. Add only when noisy.
+skip = []
 skip-tree = []
 
 # ---------------------------------------------------------------------------

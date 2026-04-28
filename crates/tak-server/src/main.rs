@@ -28,10 +28,7 @@ async fn main() -> anyhow::Result<()> {
         .json()
         .init();
 
-    tracing::info!(
-        version = env!("CARGO_PKG_VERSION"),
-        "tak-server starting"
-    );
+    tracing::info!(version = env!("CARGO_PKG_VERSION"), "tak-server starting");
     tracing::warn!("scaffold only; no listeners are bound yet — see docs/architecture.md §11");
 
     Ok(())

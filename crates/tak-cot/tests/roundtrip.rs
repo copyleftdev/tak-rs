@@ -4,6 +4,7 @@
 //!   lands when XML parser is implemented (M0 milestone).
 //! - **Framing constants** — hard-coded checks that the wire constants match
 //!   the spec; protects against accidental edits.
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 #[test]
 fn framing_constants_match_spec() {

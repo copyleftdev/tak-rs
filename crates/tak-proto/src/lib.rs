@@ -30,7 +30,10 @@ pub mod atakmap {
     pub mod commoncommo {
         pub mod protobuf {
             pub mod v1 {
-                include!(concat!(env!("OUT_DIR"), "/atakmap.commoncommo.protobuf.v1.rs"));
+                include!(concat!(
+                    env!("OUT_DIR"),
+                    "/atakmap.commoncommo.protobuf.v1.rs"
+                ));
             }
         }
     }

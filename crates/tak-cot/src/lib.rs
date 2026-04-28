@@ -49,7 +49,7 @@ pub mod framing {
         /// Raw CoT XML, no header (legacy).
         Xml = 0x00,
         /// TAK Protocol v1, protobuf payload.
-        V1  = 0x01,
+        V1 = 0x01,
     }
 }
 

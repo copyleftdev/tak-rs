@@ -17,7 +17,6 @@ trivial-copy-size-limit = 16
 
 # Match exhaustiveness — non-exhaustive enums are noise unless we genuinely add variants.
 enum-variant-name-threshold = 3
-struct-excessive-bools = 3
 
 # Documentation
 missing-docs-in-crate-items = false  # tighten to true once each crate's lib.rs has docs
@@ -28,7 +27,14 @@ disallowed-methods = [
     { path = "tokio::spawn", reason = "use tak_server::tasks::spawn for named, traced, time-bounded tasks (invariant N3)" },
 ]
 
-# Disallow these types in lib code.
+# Disallow these types in lib code. This catches DIRECT use; transitive
+# pulls of chrono/time/lazy_static (unavoidable via sqlx, x509-parser, etc.)
+# are not flagged here — that's the right division of labor.
 disallowed-types = [
     { path = "std::time::SystemTime", reason = "use jiff::Timestamp for wall-clock time (invariant D3)" },
+    { path = "chrono::DateTime",      reason = "use jiff (invariant D3)" },
+    { path = "chrono::NaiveDateTime", reason = "use jiff (invariant D3)" },
+    { path = "time::OffsetDateTime",  reason = "use jiff (invariant D3)" },
+    { path = "time::PrimitiveDateTime", reason = "use jiff (invariant D3)" },
+    { path = "lazy_static::lazy_static", reason = "use std::sync::OnceLock or LazyLock" },
 ]

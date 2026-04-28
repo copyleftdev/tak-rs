@@ -22,8 +22,8 @@ fn main() -> std::io::Result<()> {
 
     let mut config = prost_build::Config::new();
     config.out_dir(&out_dir);
-    config.bytes(["."]);   // map `bytes` proto fields to bytes::Bytes (zero-copy)
-    config.compile_protos(&protos, &[proto_dir.clone()])?;
+    config.bytes(["."]); // map `bytes` proto fields to bytes::Bytes (zero-copy)
+    config.compile_protos(&protos, std::slice::from_ref(&proto_dir))?;
 
     for p in &protos {
         println!("cargo:rerun-if-changed={}", p.display());

@@ -27,10 +27,10 @@ axum        = "0.8"
 futures     = "0.3"
 
 # --- crypto / network (Smith + Ochtman) ---
-rustls       = { version = "0.23", default-features = false, features = ["aws_lc_rs", "tls12"] }
-tokio-rustls = { version = "0.26", default-features = false, features = ["aws_lc_rs", "tls12"] }
-rustls-pemfile = "2"
-quinn        = "0.11"
+rustls           = { version = "0.23", default-features = false, features = ["aws_lc_rs", "tls12"] }
+tokio-rustls     = { version = "0.26", default-features = false, features = ["aws_lc_rs", "tls12"] }
+rustls-pki-types = { version = "1",    features = ["std"] }   # PEM parsing (rustls-pemfile is unmaintained)
+quinn            = "0.11"
 socket2      = "0.5"
 x509-parser  = "0.16"
 
@@ -109,9 +109,11 @@ testcontainers = "0.23"
 # See docs/invariants.md for the rationale of each.
 # ---------------------------------------------------------------------------
 [workspace.lints.rust]
-unsafe_code     = "warn"   # not "deny" — unsafe-auditor agent gates per-block
-missing_docs    = "warn"
-unreachable_pub = "warn"
+unsafe_code                   = "warn"   # not "deny" — unsafe-auditor agent gates per-block
+missing_docs                  = "warn"
+unreachable_pub               = "warn"
+# A1: every public type Debug. (rustc lint, not clippy.)
+missing_debug_implementations = "warn"
 
 [workspace.lints.clippy]
 # D1: no panic paths in lib code.
@@ -125,21 +127,18 @@ mem_forget     = "deny"
 # D5: tracing only.
 print_stdout   = "deny"
 print_stderr   = "deny"
-# A1: every public type Debug.
-missing_debug_implementations = "warn"
 # Hygiene.
 needless_pass_by_value = "warn"
 str_to_string          = "warn"
-string_to_string       = "warn"
 inefficient_to_string  = "warn"
 large_types_passed_by_value = "warn"
 # H4: no implicit lossy casts on wire-format numeric paths.
-cast_lossless           = "warn"
+cast_lossless            = "warn"
 cast_possible_truncation = "warn"
-cast_possible_wrap      = "warn"
-cast_sign_loss          = "warn"
-# Pedantic style — warn so individual sites can opt out with a comment.
-must_use_candidate = "allow"
+cast_possible_wrap       = "warn"
+cast_sign_loss           = "warn"
+# Pedantic style — opt out so individual sites can override.
+must_use_candidate     = "allow"
 module_name_repetitions = "allow"
 
 # ---------------------------------------------------------------------------
