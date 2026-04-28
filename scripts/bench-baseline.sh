@@ -36,6 +36,7 @@ DURATION=10
 MIX="realistic"
 TAG="rust"
 TARGET_PID=""
+URING_FLAG=""
 
 usage() {
     cat <<EOF
@@ -49,6 +50,7 @@ Options:
   --mix PROFILE        realistic | pli-only | uniform (default: realistic)
   --tag NAME           tag embedded in JSON (default: "rust")
   --pid PID            target process pid for CPU/RSS sampling (auto if empty)
+  --uring              use the io_uring loadgen driver (Linux only)
   -h, --help           show this help
 
 The run output is written to $HISTORY_DIR/<tag>-<timestamp>.json.
@@ -64,6 +66,7 @@ while [[ $# -gt 0 ]]; do
         --mix)          MIX="$2"; shift 2 ;;
         --tag)          TAG="$2"; shift 2 ;;
         --pid)          TARGET_PID="$2"; shift 2 ;;
+        --uring)        URING_FLAG="--uring"; shift ;;
         -h|--help)      usage; exit 0 ;;
         *)              echo "unknown arg: $1" >&2; usage; exit 1 ;;
     esac
@@ -121,6 +124,7 @@ LOADGEN_JSON="$(
         --duration "$DURATION" \
         --mix "$MIX" \
         --tag "$TAG" \
+        $URING_FLAG \
         --json
 )"
 

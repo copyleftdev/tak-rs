@@ -1,0 +1,10 @@
+{
+  "loadgen": {"tag":"rust-uring-nopersist","target":"127.0.0.1:19088","driver":"io_uring","connections":2000,"rate":100,"duration":20,"mix":"Realistic","elapsed_s":20.116189805,"sent_total":2374544,"bytes_total":884096679,"msg_per_s":118041.43940865943,"mb_per_s":41.913518621344146,"pli":1661974,"chat":475269,"detail":237301,"errors":631},
+  "system": {
+    "target_pid": "2454430",
+    "samples": 18,
+    "peak_cpu_pct": 3850,
+    "max_rss_mb": 180
+  },
+  "captured_at": "2026-04-28T14-45-26Z"
+}

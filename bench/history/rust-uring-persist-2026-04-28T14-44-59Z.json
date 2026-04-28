@@ -1,0 +1,10 @@
+{
+  "loadgen": {"tag":"rust-uring-persist","target":"127.0.0.1:19088","driver":"io_uring","connections":2000,"rate":100,"duration":20,"mix":"Realistic","elapsed_s":20.129796235,"sent_total":2164461,"bytes_total":806202111,"msg_per_s":107525.23148925953,"mb_per_s":38.19483506526417,"pli":1515054,"chat":432920,"detail":216487,"errors":356},
+  "system": {
+    "target_pid": "2453995",
+    "samples": 18,
+    "peak_cpu_pct": 4510,
+    "max_rss_mb": 247
+  },
+  "captured_at": "2026-04-28T14-44-59Z"
+}

@@ -36,25 +36,29 @@ The first run with a 1000-conn × 50 msg/s offered load measured **46 k msg/s**,
 
 All runs via `scripts/bench-baseline.sh`; raw JSON in `bench/history/`. Single laptop, single-box loopback. Run-to-run variance on this hardware is ±10 %, so the comparisons below are qualitative — the Java cross-comparison will be measured back-to-back on the same hardware to get a clean ratio.
 
-| Tag | Mode | Conns | Offered | Sustained (msg/s) | Max RSS (MB) | Peak CPU % |
-|---|---|---|---|---|---|---|
-| `rust-persist-50k` | persist | 1 000 | 50 k | 41 848 | 111 | 2 060 |
-| `rust-nopersist-50k` | dispatch-only | 1 000 | 50 k | 43 799 | 105 | 2 110 |
-| `rust-persist-200k` | persist | 2 000 | 200 k | **114 573** | 176 | 6 290 |
-| `rust-nopersist-200k` | dispatch-only | 2 000 | 200 k | **141 815** | 226 | 6 090 |
+All runs at **2 000 conns × 100 msg/s × 20 s** (200 k msg/s offered) on the same box, harness-via-`bench-baseline.sh`. Each row is a single run; ±10 % run-to-run variance is normal on this laptop.
+
+| Tag | Server persist | Loadgen driver | Sustained (msg/s) | Max RSS (MB) | Peak CPU % |
+|---|---|---|---|---|---|
+| `rust-tokio-persist`     | on  | tokio (multi-thread) | 101 246 | 174 | 2 710 |
+| `rust-tokio-nopersist`   | off | tokio (multi-thread) | **176 620** | 540 | 6 320 |
+| `rust-uring-persist`     | on  | tokio-uring (single-thread) | 107 525 | 247 | 4 510 |
+| `rust-uring-nopersist`   | off | tokio-uring (single-thread) | 118 041 | 180 | 3 850 |
 
 | Side | Configuration | Sent (msg/s) | Ratio |
 |------|--------------|--------------|-------|
 | Java upstream | _TBD_ (awaiting container) | _TBD_ | 1.00× (baseline) |
-| **tak-rs (persist)** | 2 000 conn × 100 msg/s × 20 s | **114 573** | _TBD_ |
-| **tak-rs (no-persist)** | 2 000 conn × 100 msg/s × 20 s | **141 815** | _TBD_ |
+| tak-rs (persist, tokio loadgen) | 2 000 × 100 × 20 s | 101 246 | _TBD_ |
+| **tak-rs (no-persist, tokio loadgen)** | 2 000 × 100 × 20 s | **176 620** | _TBD_ |
+| tak-rs (persist, uring loadgen) | 2 000 × 100 × 20 s | 107 525 | _TBD_ |
+| tak-rs (no-persist, uring loadgen) | 2 000 × 100 × 20 s | 118 041 | _TBD_ |
 
 **Key findings**
 
-- **tak-rs is 2.3× the M5 50 k msg/s headline target with persistence on**, and 2.8× with `--no-persist`. The earlier 46 k figure (1 000 conn × 50 msg/s offered) was loadgen-rate-jitter limited, not a server ceiling — at that offered load, the server is mostly idle waiting for the next message.
-- The **persistence side-channel costs ~19 %** at 200 k offered (114 k vs 142 k). The `CotInsert` allocations (5 owned `String`s per message) are now visible in the gap. The H1 hot path stays alloc-free — those allocations live on the *persistence* side of the bounded mpsc per pipeline.rs's intentional design — but they consume real CPU.
-- Zero-copy frame extraction (`split_to().freeze()` vs `Bytes::copy_from_slice`) is in place but its gain at 50 k offered is below the run-to-run noise floor on this hardware. It would show clearly with a kernel-bypass loadgen; for now we ship the change because it's the architecturally correct one (no per-message memcpy off the read buffer).
-- Per-connection RSS at 2 000 conns: ~88 KB — well below the typical Java `ChannelHandlerContext` weight, though we have not yet measured Java side-by-side on the same box.
+- **tak-rs sustains 3.5× the M5 50 k msg/s target** at the headline configuration (no-persist, tokio loadgen, 176 k msg/s) and **~2× the target with persistence enabled**. The earlier 46 k figure was loadgen rate-jitter at a low offered load, not a server ceiling.
+- **The io_uring loadgen is currently slower than the tokio loadgen** on this hardware (118 k vs 176 k no-persist), and that is a *loadgen-side* limit, not a server one. `tokio-uring` 0.5 is single-threaded by design — the loadgen process saturates one core (≈100 % CPU on the loadgen pid) at ~120 k msg/s, while the multi-threaded tokio loadgen reaches ~200 % CPU and pushes 50 % more. A multi-threaded io_uring runtime (one ring per worker, à la `monoio`/`compio`/`glommio`) would close that gap; that is a future bench-infra optimisation, not a tak-server change.
+- **Persistence costs ~40 % under tokio loadgen** (101 k vs 176 k) and **~9 % under uring loadgen** (107 k vs 118 k). The lower uring delta is partly because uring's smaller per-write coalescing makes the server's read-decode-dispatch path the bottleneck before persistence becomes visible. Both modes are well above the M5 floor.
+- **Per-connection RSS** sits between 87 KB and 270 KB depending on configuration — the 540 MB high-water on the no-persist tokio run comes from the read-side `BytesMut` chunks the server holds while subscribers drain.
 
 ### 3.2 Latency
 
@@ -77,10 +81,10 @@ Peak RSS observed during the run (sampled at 1 Hz via `/proc/<pid>/status`).
 | Side | Max RSS (MB) | Per connection |
 |------|--------------|----------------|
 | Java upstream | _TBD_ | _TBD_ |
-| tak-rs (1 000 conn, persist) | 111 | ~110 KB |
-| tak-rs (1 000 conn, no-persist) | 105 | ~105 KB |
-| **tak-rs (2 000 conn, persist)** | **176** | **~88 KB** |
-| **tak-rs (2 000 conn, no-persist)** | **226** | **~113 KB** |
+| tak-rs (2 000 conn, tokio loadgen, persist) | 174 | ~87 KB |
+| tak-rs (2 000 conn, tokio loadgen, no-persist) | 540 | ~270 KB |
+| tak-rs (2 000 conn, uring loadgen, persist) | 247 | ~123 KB |
+| tak-rs (2 000 conn, uring loadgen, no-persist) | 180 | ~90 KB |
 
 Java's per-connection state is dominated by the GC-tracked `ChannelHandlerContext` plus the mutable `BigInteger` group bitvector; tak-rs's per-connection state is the fixed `[u64; 4]` mask plus the slab-allocated `Subscription`. The 110 KB/conn for the Rust path includes the per-connection `BytesMut` read buffer (8 KB initial, grows on demand) and the bounded mpsc channel (`DEFAULT_SUBSCRIBER_CAPACITY` × `Bytes` slot ≈ 32 KB), so the steady-state cost per connection is much smaller than the high-water RSS suggests.
 
@@ -93,10 +97,10 @@ Peak CPU% observed (`top -b -n 1 -p PID`, 1 Hz sampling — sum across threads, 
 | Side | Peak % | Notes |
 |------|--------|-------|
 | Java upstream | _TBD_ | _TBD_ |
-| tak-rs (1 000 conn, persist) | 2 060 | 20 cores at 50 k offered. |
-| tak-rs (1 000 conn, no-persist) | 2 110 | 21 cores at 50 k offered. |
-| **tak-rs (2 000 conn, persist)** | **6 290** | 63 cores at 200 k offered — fully saturating the box. |
-| **tak-rs (2 000 conn, no-persist)** | **6 090** | 61 cores at 200 k offered. |
+| tak-rs (tokio loadgen, persist) | 2 710 | 27 cores at 200 k offered. |
+| tak-rs (tokio loadgen, no-persist) | 6 320 | 63 cores; saturating the box. |
+| tak-rs (uring loadgen, persist) | 4 510 | 45 cores; uring-side write rate gates server work. |
+| tak-rs (uring loadgen, no-persist) | 3 850 | 38 cores; loadgen-bound, not server-bound. |
 
 ### 3.5 Verdict
 

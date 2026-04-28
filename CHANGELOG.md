@@ -24,15 +24,27 @@ Internal milestones (M0–M5) and the issues that close them are referenced inli
 - **`tak-server --no-persist` flag** (env: `TAK_NO_PERSIST=true`) skips the
   persistence side-channel entirely. Used to measure pure dispatch
   throughput against an upstream Java server with persistence disabled.
-- **First real Rust firehose perf numbers** (single-box loopback,
-  `--release`, harness-captured in `bench/history/rust-*.json`):
-  - 114 573 msg/s with persistence enabled (200 k msg/s offered)
-  - 141 815 msg/s with `--no-persist` (200 k msg/s offered)
-  - **2.3× the M5 50 k msg/s headline target** with persistence on
-    (2.8× without). Numbers in `docs/perf-comparison.md`. Earlier 46 k
-    figure (50 k offered) was loadgen-rate-jitter limited, not a
-    server ceiling.
-  - Persistence side-channel costs ~19 % relative to bus-only — the
+- **`taktool loadgen --uring`** (Linux only): io_uring backend that
+  drives connections through `tokio-uring` instead of tokio's epoll
+  reactor. Each connection rotates through 5 pre-cloned framed-fixture
+  `Vec<u8>`s so writes hand the kernel an owned buffer with no
+  per-message allocation. Single `unsafe` block (raw-fd
+  `BorrowedFd::borrow_raw` for setting `TCP_NODELAY` via `socket2`)
+  reviewed by the unsafe-auditor agent.
+- **`scripts/bench-baseline.sh --uring`** passthrough flag.
+- **Updated Rust firehose perf numbers** (2 000 conn × 100 msg/s × 20 s,
+  harness-captured in `bench/history/rust-{tokio,uring}-*.json`):
+  - tokio loadgen, persist:    101 246 msg/s
+  - tokio loadgen, no-persist: **176 620 msg/s** (3.5× M5 target)
+  - uring loadgen, persist:    107 525 msg/s
+  - uring loadgen, no-persist: 118 041 msg/s
+  - The io_uring loadgen is currently slower than the multi-threaded
+    tokio loadgen because `tokio-uring` 0.5 is single-threaded
+    (loadgen process saturates 1 core at ~120 k msg/s). A
+    multi-threaded io_uring runtime (`monoio`/`compio`/`glommio`)
+    would close that gap; for now the tokio loadgen is the canonical
+    headline driver.
+  - Persistence side-channel costs ~9-40 % depending on driver — the
     `CotInsert` `String` allocations are real but stay strictly off
     the H1 hot path (proven by the dhat test in M2).
 - **`xtask` automation crate.** New `crates/xtask` accessible via `cargo xt <verb>`.

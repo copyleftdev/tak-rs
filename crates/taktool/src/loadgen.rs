@@ -83,7 +83,7 @@ impl MixProfile {
     /// Returns a 100-element table mapping `[0, 100)` → [`Class`]. The
     /// load generator picks a class by `counter % 100`, giving a
     /// strictly deterministic mix without needing an RNG.
-    fn lookup_table(self) -> [Class; 100] {
+    pub(crate) fn lookup_table(self) -> [Class; 100] {
         let mut table = [Class::Pli; 100];
         let (pli, chat, _detail) = match self {
             Self::Realistic => (70, 20, 10),
@@ -108,33 +108,39 @@ impl MixProfile {
 pub(crate) struct LoadgenArgs {
     /// `host:port` to dial. Plain TCP for now; mTLS on 8089 lands later.
     #[arg(long, default_value = "127.0.0.1:8088")]
-    target: String,
+    pub(crate) target: String,
 
     /// Number of concurrent connections.
     #[arg(long, short = 'c', default_value_t = 10)]
-    connections: usize,
+    pub(crate) connections: usize,
 
     /// Per-connection emit rate in messages per second.
     #[arg(long, short = 'r', default_value_t = 5)]
-    rate: u32,
+    pub(crate) rate: u32,
 
     /// How long to run before stopping (seconds). 0 = run forever.
     #[arg(long, short = 'd', default_value_t = 30)]
-    duration: u64,
+    pub(crate) duration: u64,
 
     /// Traffic mix profile.
     #[arg(long, short = 'm', default_value = "realistic", value_enum)]
-    mix: MixProfile,
+    pub(crate) mix: MixProfile,
 
     /// On exit, print a single line of JSON to stdout summarizing the
     /// run. Consumed by `scripts/bench-baseline.sh`.
     #[arg(long)]
-    json: bool,
+    pub(crate) json: bool,
 
     /// Tag to embed in the JSON output (e.g. "rust", "java-baseline").
     /// Lets a comparison harness merge runs from different targets.
     #[arg(long, default_value = "")]
-    tag: String,
+    pub(crate) tag: String,
+
+    /// Use the io_uring driver instead of the default tokio (epoll)
+    /// driver. Linux-only — on other platforms this flag is rejected
+    /// at startup. Single-threaded uring runtime.
+    #[arg(long)]
+    pub(crate) uring: bool,
 }
 
 /// Build the wire payload (TakMessage proto, length-prefixed) from one
@@ -150,14 +156,14 @@ fn bake(xml: &str) -> Result<Vec<u8>> {
 
 /// All baked fixtures for a single loadgen run. The `detail` array
 /// rotates across geofence / route / drawing inside the 10 % bucket.
-struct Corpus {
-    pli: Vec<u8>,
-    chat: Vec<u8>,
-    detail: [Vec<u8>; 3],
+pub(crate) struct Corpus {
+    pub(crate) pli: Vec<u8>,
+    pub(crate) chat: Vec<u8>,
+    pub(crate) detail: [Vec<u8>; 3],
 }
 
 /// Pre-bake all five fixtures into wire frames.
-fn bake_corpus() -> Result<Corpus> {
+pub(crate) fn bake_corpus() -> Result<Corpus> {
     Ok(Corpus {
         pli: bake(FIXTURE_PLI)?,
         chat: bake(FIXTURE_CHAT)?,
@@ -171,17 +177,17 @@ fn bake_corpus() -> Result<Corpus> {
 
 /// Per-second telemetry counters.
 #[derive(Debug, Default)]
-struct Stats {
-    sent_total: AtomicU64,
-    bytes_total: AtomicU64,
-    sent_pli: AtomicU64,
-    sent_chat: AtomicU64,
-    sent_detail: AtomicU64,
-    write_errors: AtomicU64,
+pub(crate) struct Stats {
+    pub(crate) sent_total: AtomicU64,
+    pub(crate) bytes_total: AtomicU64,
+    pub(crate) sent_pli: AtomicU64,
+    pub(crate) sent_chat: AtomicU64,
+    pub(crate) sent_detail: AtomicU64,
+    pub(crate) write_errors: AtomicU64,
 }
 
 impl Stats {
-    fn record(&self, class: Class, bytes: usize) {
+    pub(crate) fn record(&self, class: Class, bytes: usize) {
         self.sent_total.fetch_add(1, Ordering::Relaxed);
         self.bytes_total.fetch_add(bytes as u64, Ordering::Relaxed);
         match class {
@@ -376,29 +382,44 @@ pub(crate) async fn run(args: LoadgenArgs) -> Result<()> {
         "loadgen done"
     );
     if args.json {
-        // One-line JSON record consumed by `scripts/bench-baseline.sh`.
-        // Hand-rolled rather than via serde_json to keep the dependency
-        // surface tight; numeric formatting matches Rust's debug repr.
-        println!(
-            r#"{{"tag":"{tag}","target":"{target}","connections":{conns},"rate":{rate},"duration":{dur},"mix":"{mix:?}","elapsed_s":{elapsed},"sent_total":{sent},"bytes_total":{bytes},"msg_per_s":{mps},"mb_per_s":{bps},"pli":{pli},"chat":{chat},"detail":{detail},"errors":{errs}}}"#,
-            tag = args.tag,
-            target = args.target,
-            conns = args.connections,
-            rate = args.rate,
-            dur = args.duration,
-            mix = args.mix,
-            elapsed = elapsed,
-            sent = sent,
-            bytes = bytes,
-            mps = msg_per_s,
-            bps = mb_per_s,
-            pli = pli,
-            chat = chat,
-            detail = detail,
-            errs = errs,
-        );
+        emit_json_summary(&args, &stats, started.elapsed());
     }
     Ok(())
+}
+
+/// One-line JSON record consumed by `scripts/bench-baseline.sh`.
+/// Hand-rolled rather than via serde_json to keep the dependency
+/// surface tight; numeric formatting matches Rust's debug repr.
+pub(crate) fn emit_json_summary(args: &LoadgenArgs, stats: &Stats, elapsed: Duration) {
+    let elapsed_s = elapsed.as_secs_f64();
+    let sent = stats.sent_total.load(Ordering::Relaxed);
+    let bytes = stats.bytes_total.load(Ordering::Relaxed);
+    let pli = stats.sent_pli.load(Ordering::Relaxed);
+    let chat = stats.sent_chat.load(Ordering::Relaxed);
+    let detail = stats.sent_detail.load(Ordering::Relaxed);
+    let errs = stats.write_errors.load(Ordering::Relaxed);
+    let msg_per_s = sent as f64 / elapsed_s;
+    let mb_per_s = (bytes as f64 / elapsed_s) / 1_048_576.0;
+    let driver = if args.uring { "io_uring" } else { "tokio" };
+    println!(
+        r#"{{"tag":"{tag}","target":"{target}","driver":"{driver}","connections":{conns},"rate":{rate},"duration":{dur},"mix":"{mix:?}","elapsed_s":{elapsed_s},"sent_total":{sent},"bytes_total":{bytes},"msg_per_s":{mps},"mb_per_s":{bps},"pli":{pli},"chat":{chat},"detail":{detail},"errors":{errs}}}"#,
+        tag = args.tag,
+        target = args.target,
+        driver = driver,
+        conns = args.connections,
+        rate = args.rate,
+        dur = args.duration,
+        mix = args.mix,
+        elapsed_s = elapsed_s,
+        sent = sent,
+        bytes = bytes,
+        mps = msg_per_s,
+        bps = mb_per_s,
+        pli = pli,
+        chat = chat,
+        detail = detail,
+        errs = errs,
+    );
 }
 
 #[cfg(test)]

@@ -1,0 +1,10 @@
+{
+  "loadgen": {"tag":"rust-tokio-nopersist","target":"127.0.0.1:19088","driver":"tokio","connections":2000,"rate":100,"duration":20,"mix":"Realistic","elapsed_s":20.047829321,"sent_total":3540852,"bytes_total":1318416575,"msg_per_s":176620.21874313225,"mb_per_s":62.71701568133051,"pli":2478431,"chat":708272,"detail":354149,"errors":111},
+  "system": {
+    "target_pid": "2453480",
+    "samples": 18,
+    "peak_cpu_pct": 6320,
+    "max_rss_mb": 540
+  },
+  "captured_at": "2026-04-28T14-44-32Z"
+}

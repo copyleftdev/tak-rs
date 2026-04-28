@@ -11,6 +11,9 @@
 
 mod loadgen;
 
+#[cfg(target_os = "linux")]
+mod loadgen_uring;
+
 use clap::{Parser, Subcommand};
 
 #[derive(Parser, Debug)]
@@ -40,20 +43,43 @@ fn main() -> anyhow::Result<()> {
             println!("  multicast:      {MULTICAST_GROUP}:{MULTICAST_PORT}");
             Ok(())
         }
-        Cmd::Loadgen(args) => {
-            // Logs go to stderr so the optional --json line on stdout
-            // can be captured cleanly by `scripts/bench-baseline.sh`.
-            tracing_subscriber::fmt()
-                .with_writer(std::io::stderr)
-                .with_env_filter(
-                    tracing_subscriber::EnvFilter::try_from_default_env()
-                        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
-                )
-                .init();
-            tokio::runtime::Builder::new_multi_thread()
-                .enable_all()
-                .build()?
-                .block_on(loadgen::run(args))
-        }
+        Cmd::Loadgen(args) => run_loadgen(args),
     }
+}
+
+#[cfg(target_os = "linux")]
+fn run_loadgen(args: loadgen::LoadgenArgs) -> anyhow::Result<()> {
+    init_loadgen_tracing();
+    if args.uring {
+        loadgen_uring::run(args)
+    } else {
+        tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()?
+            .block_on(loadgen::run(args))
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+fn run_loadgen(args: loadgen::LoadgenArgs) -> anyhow::Result<()> {
+    init_loadgen_tracing();
+    if args.uring {
+        anyhow::bail!("--uring is Linux-only; rebuild on Linux or omit the flag");
+    }
+    tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()?
+        .block_on(loadgen::run(args))
+}
+
+fn init_loadgen_tracing() {
+    // Logs go to stderr so the optional --json line on stdout can be
+    // captured cleanly by `scripts/bench-baseline.sh`.
+    tracing_subscriber::fmt()
+        .with_writer(std::io::stderr)
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
+        )
+        .init();
 }
