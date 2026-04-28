@@ -22,4 +22,6 @@
 #![warn(missing_docs, missing_debug_implementations)]
 
 pub mod firehose;
+#[cfg(target_os = "linux")]
+pub mod firehose_compio;
 pub mod pipeline;

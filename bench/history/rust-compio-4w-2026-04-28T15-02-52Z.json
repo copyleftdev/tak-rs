@@ -1,0 +1,10 @@
+{
+  "loadgen": {"tag":"rust-compio-4w","target":"127.0.0.1:19288","driver":"tokio","connections":2000,"rate":100,"duration":20,"mix":"Realistic","elapsed_s":20.018574928,"sent_total":3990069,"bytes_total":1485694292,"msg_per_s":199318.3338150153,"mb_per_s":70.77768989090188,"pli":2793051,"chat":798002,"detail":399016,"errors":0},
+  "system": {
+    "target_pid": "2476227",
+    "samples": 18,
+    "peak_cpu_pct": 410,
+    "max_rss_mb": 620
+  },
+  "captured_at": "2026-04-28T15-02-52Z"
+}

@@ -1,0 +1,10 @@
+{
+  "loadgen": {"tag":"rust-compio-headline","target":"127.0.0.1:19488","driver":"tokio","connections":5000,"rate":200,"duration":30,"mix":"Realistic","elapsed_s":30.02241176,"sent_total":17816027,"bytes_total":6632975025,"msg_per_s":593424.2439422195,"mb_per_s":210.6991927655383,"pli":12471356,"chat":3563308,"detail":1781363,"errors":0},
+  "system": {
+    "target_pid": "2479479",
+    "samples": 27,
+    "peak_cpu_pct": 810,
+    "max_rss_mb": 882
+  },
+  "captured_at": "2026-04-28T15-05-33Z"
+}

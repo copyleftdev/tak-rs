@@ -24,6 +24,23 @@ Internal milestones (M0–M5) and the issues that close them are referenced inli
 - **`tak-server --no-persist` flag** (env: `TAK_NO_PERSIST=true`) skips the
   persistence side-channel entirely. Used to measure pure dispatch
   throughput against an upstream Java server with persistence disabled.
+- **`tak-server --compio`** (Linux only, default off): swaps the
+  firehose runtime from tokio (epoll) to **compio** — multi-threaded
+  io_uring, thread-per-core, one ring per worker. Workers bind the
+  listen socket with `SO_REUSEPORT` so the kernel load-balances
+  incoming connections; per-connection state (`!Send` `TcpStream`)
+  stays on the worker that accepted it. The mission API stays on
+  tokio. `--compio-threads N` controls worker count (default 4).
+  `Bytes` payloads from the bus flow through compio's `IoBuf for
+  bytes::Bytes` impl with no memcpy on the writer side (H3
+  preserved).
+  Caveat: compio path is currently `--no-persist` only — bridging
+  the persistence side-channel across runtimes is the next item.
+  Headline: **593 424 msg/s sustained over 30 s, 5 000 conns, 0
+  errors, 882 MB RSS, 810 % CPU** — 11.87× the M5 50 k target. At
+  matched 200 k offered load, compio does 199 k msg/s at 410 % CPU
+  vs tokio's 139 k at 5 410 % (1.43× throughput, ~13× CPU
+  efficiency).
 - **`taktool loadgen --uring`** (Linux only): io_uring backend that
   drives connections through `tokio-uring` instead of tokio's epoll
   reactor. Each connection rotates through 5 pre-cloned framed-fixture

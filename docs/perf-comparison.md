@@ -36,7 +36,22 @@ The first run with a 1000-conn × 50 msg/s offered load measured **46 k msg/s**,
 
 All runs via `scripts/bench-baseline.sh`; raw JSON in `bench/history/`. Single laptop, single-box loopback. Run-to-run variance on this hardware is ±10 %, so the comparisons below are qualitative — the Java cross-comparison will be measured back-to-back on the same hardware to get a clean ratio.
 
-All runs at **2 000 conns × 100 msg/s × 20 s** (200 k msg/s offered) on the same box, harness-via-`bench-baseline.sh`. Each row is a single run; ±10 % run-to-run variance is normal on this laptop.
+### 3.1.a Firehose runtime: tokio vs compio (the headline)
+
+| Tag | Firehose runtime | Conns | Offered | Sustained (msg/s) | RSS MB | Peak CPU % | Errors |
+|---|---|---|---|---|---|---|---|
+| `rust-tokio-nopersist-v2` | tokio (multi-thread) | 2 000 | 200 k | 139 400 | 291 | 5 410 | 492 |
+| `rust-compio-4w` | compio (4 workers, SO_REUSEPORT) | 2 000 | 200 k | **199 318** | 620 | **410** | **0** |
+| `rust-compio-8w` | compio (8 workers, SO_REUSEPORT) | 2 000 | 200 k | 199 222 | 591 | 820 | 0 |
+| **`rust-compio-headline`** | compio (8 workers) | **5 000** | **1 M** | **593 424** | **882** | **810** | **0** |
+
+> ⚠️ The compio path is currently `--no-persist` only — the `Store` writer mpsc lives on the tokio runtime, so there is no cross-runtime bridge yet. The tokio rows above are also `no-persist` for an apples-to-apples comparison.
+
+**Headline: 593 424 msg/s sustained for 30 s on 5 000 conns at 0 errors, with 8 cores fully busy.** That is **11.87× the M5 50 k headline target**.
+
+The compio runtime delivers 1.43× the throughput at *one-thirteenth* the CPU vs tokio at the same 200 k offered load (139 k @ 5 410 % vs 199 k @ 410 %). The reason: io_uring submits writes without a per-message syscall, and compio's thread-per-core model removes the work-stealing wakeup tax that tokio pays for every connection's read/write turn. SO_REUSEPORT on the listening socket lets the kernel itself round-robin SYNs across N rings — the "accept storm causes 492 errors on tokio" pattern disappears entirely with compio (0 errors at every load tested).
+
+### 3.1.b Loadgen driver: tokio vs uring (less interesting now)
 
 | Tag | Server persist | Loadgen driver | Sustained (msg/s) | Max RSS (MB) | Peak CPU % |
 |---|---|---|---|---|---|
@@ -139,10 +154,13 @@ until ss -ltn | grep -q ':18088'; do sleep 1; done
 cargo run --release -p tak-server -- --listen 0.0.0.0:8088
 ```
 
-> **Update (2026-04-28):** `tak-server::main` now binds the plain CoT
-> firehose on `:8088` and the mission API on `:8080`. The Rust row in
-> §3.1, §3.3, and §3.4 above reflects a real loopback measurement
-> against this listener; only the Java row remains pending.
+> **Update (2026-04-28):** `tak-server::main` binds the plain CoT
+> firehose on `:8088` (default tokio runtime, or compio multi-thread
+> io_uring with `--compio`) and the mission API on `:8080` (axum on
+> tokio). The Rust rows in §3.1, §3.3, and §3.4 reflect real loopback
+> measurements; only the Java row remains pending. The compio row is
+> currently `no-persist` only — the cross-runtime bridge for the
+> `Store` writer is the next item.
 
 ### 4.3 Run the comparison
 

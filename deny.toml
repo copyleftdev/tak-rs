@@ -45,6 +45,16 @@ ignore = [
     # testcontainers → bollard → hyper-rustls. We dropped our direct
     # dep on it (#16); test-only path doesn't matter.
     "RUSTSEC-2025-0134",
+
+    # paste v1.0.15 unmaintained (archived by author). Pulled in
+    # transitively by compio-driver → compio. compio is gated behind
+    # `tak-server --compio` (Linux-only opt-in firehose runtime); the
+    # default tokio path does not touch it. `paste` is a proc-macro
+    # crate that runs at build time only; it does not ship in the
+    # binary and has no runtime input surface. Drop this ignore when
+    # compio migrates to `pastey` (tracked upstream:
+    # https://github.com/compio-rs/compio).
+    "RUSTSEC-2024-0436",
 ]
 
 # ---------------------------------------------------------------------------

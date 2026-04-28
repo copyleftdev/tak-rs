@@ -1,0 +1,10 @@
+{
+  "loadgen": {"tag":"rust-compio-8w","target":"127.0.0.1:19288","driver":"tokio","connections":2000,"rate":100,"duration":20,"mix":"Realistic","elapsed_s":20.021607515,"sent_total":3988754,"bytes_total":1485205206,"msg_per_s":199222.46488008834,"mb_per_s":70.74367322873044,"pli":2792130,"chat":797738,"detail":398886,"errors":0},
+  "system": {
+    "target_pid": "2477230",
+    "samples": 18,
+    "peak_cpu_pct": 820,
+    "max_rss_mb": 591
+  },
+  "captured_at": "2026-04-28T15-03-26Z"
+}

@@ -55,6 +55,18 @@ struct Args {
     /// upstream Java server with persistence disabled or off-box.
     #[arg(long, env = "TAK_NO_PERSIST", default_value_t = false)]
     no_persist: bool,
+
+    /// Run the firehose on a multi-threaded compio (io_uring)
+    /// runtime instead of the default tokio reactor. Linux-only.
+    /// The mission API stays on tokio either way.
+    #[arg(long, env = "TAK_COMPIO", default_value_t = false)]
+    compio: bool,
+
+    /// Number of compio worker threads. Each owns one io_uring
+    /// instance and binds the firehose port with `SO_REUSEPORT`.
+    /// Ignored unless `--compio` is set.
+    #[arg(long, env = "TAK_COMPIO_THREADS", default_value_t = 4)]
+    compio_threads: usize,
 }
 
 #[tokio::main]
@@ -88,9 +100,6 @@ async fn main() -> Result<()> {
 
     let bus = Bus::new();
 
-    let cot_listener = TcpListener::bind(args.listen_cot)
-        .await
-        .with_context(|| format!("bind {}", args.listen_cot))?;
     let api_listener = TcpListener::bind(args.listen_api)
         .await
         .with_context(|| format!("bind {}", args.listen_api))?;
@@ -100,6 +109,8 @@ async fn main() -> Result<()> {
     info!(
         cot = %args.listen_cot,
         api = %args.listen_api,
+        compio = args.compio,
+        compio_threads = if args.compio { args.compio_threads } else { 0 },
         "listeners bound"
     );
 
@@ -112,11 +123,37 @@ async fn main() -> Result<()> {
     let firehose_handle = {
         let bus = bus.clone();
         let store = store.clone();
-        tokio::spawn(async move {
-            if let Err(e) = firehose::run(cot_listener, bus, store, persist).await {
-                warn!(error = ?e, "firehose loop exited");
-            }
-        })
+        let cot_addr = args.listen_cot;
+        let use_compio = args.compio;
+        let compio_threads = args.compio_threads;
+        if use_compio {
+            // compio's blocking runtime needs a blocking thread of
+            // its own — spawn_blocking parks on tokio's pool.
+            tokio::task::spawn(async move {
+                let res = tokio::task::spawn_blocking(move || {
+                    firehose_compio_run(cot_addr, bus, store, compio_threads)
+                })
+                .await;
+                match res {
+                    Ok(Err(e)) => warn!(error = ?e, "firehose-compio loop exited"),
+                    Err(e) => warn!(error = ?e, "firehose-compio panic"),
+                    Ok(Ok(())) => {}
+                }
+            })
+        } else {
+            tokio::spawn(async move {
+                let cot_listener = match TcpListener::bind(cot_addr).await {
+                    Ok(l) => l,
+                    Err(e) => {
+                        warn!(error = ?e, "firehose bind failed");
+                        return;
+                    }
+                };
+                if let Err(e) = firehose::run(cot_listener, bus, store, persist).await {
+                    warn!(error = ?e, "firehose loop exited");
+                }
+            })
+        }
     };
 
     #[allow(clippy::disallowed_methods)]
@@ -142,4 +179,28 @@ async fn main() -> Result<()> {
     }
 
     Ok(())
+}
+
+/// Linux-only shim for the compio firehose runtime. On non-Linux
+/// targets this returns a fail-loud error so the binary still builds
+/// (the `--compio` flag itself is universally accepted; only its
+/// activation is gated).
+#[cfg(target_os = "linux")]
+fn firehose_compio_run(
+    addr: SocketAddr,
+    bus: std::sync::Arc<Bus>,
+    store: Store,
+    threads: usize,
+) -> Result<()> {
+    tak_server::firehose_compio::run(addr, bus, store, threads)
+}
+
+#[cfg(not(target_os = "linux"))]
+fn firehose_compio_run(
+    _addr: SocketAddr,
+    _bus: std::sync::Arc<Bus>,
+    _store: Store,
+    _threads: usize,
+) -> Result<()> {
+    anyhow::bail!("--compio is Linux-only; rebuild on Linux or omit the flag")
 }
