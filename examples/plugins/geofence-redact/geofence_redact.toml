@@ -5,7 +5,10 @@ priority = 100
 
 [limits]
 max-memory-mb = 32
-max-cpu-ms-per-msg = 1
+# 5 ms / call covers our heartbeat path (every 1000 events the
+# plugin formats a string and calls log::emit). Lowering this can
+# cause false traps on busy boxes — see crates/tak-plugin-host/src/host.rs.
+max-cpu-ms-per-msg = 5
 max-rss-leak-mb = 0
 
 [capabilities]

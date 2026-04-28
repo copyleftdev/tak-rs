@@ -18,6 +18,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::Duration;
 
 use tokio::sync::mpsc;
 use tracing::{debug, info, warn};
@@ -117,13 +118,13 @@ impl PluginHost {
         let mut wasm_config = Config::new();
         wasm_config.wasm_component_model(true);
         // Epoch interruption is the mechanism behind the per-plugin
-        // `max-cpu-ms-per-msg` budget from decision 0004. We don't
-        // wire the budget enforcer yet — turning the flag on
-        // without a ticker traps every plugin call immediately.
-        // The per-plugin TOML + epoch ticker land together in a
-        // follow-up commit.
-        wasm_config.epoch_interruption(false);
+        // `max-cpu-ms-per-msg` budget from decision 0004. The
+        // ticker thread (spawned just below) increments the engine
+        // epoch every TICK_INTERVAL; per-call deadlines in
+        // `run_worker` count those ticks.
+        wasm_config.epoch_interruption(true);
         let engine = Engine::new(&wasm_config)?;
+        spawn_epoch_ticker(&engine).map_err(|e| Error::Other(anyhow::Error::new(e)))?;
 
         let mut plugins = Vec::new();
         let entries = std::fs::read_dir(&config.plugin_dir)
@@ -287,6 +288,47 @@ impl PluginHost {
     }
 }
 
+/// How often the epoch ticker bumps the engine. A 1 ms cadence
+/// means `[limits].max-cpu-ms-per-msg = N` translates roughly to
+/// "trap after N ms of plugin CPU time" — coarse but fine for the
+/// "stop a runaway plugin" use case.
+const TICK_INTERVAL: Duration = Duration::from_millis(1);
+
+/// Initial CPU budget for `init()`. Decision 0004 says init must
+/// return within 1 s; we encode that as the tick count.
+const INIT_DEADLINE_TICKS: u64 = 1_000;
+
+/// Spawn the epoch ticker. Holds an [`EngineWeak`] so it auto-
+/// exits when the last [`Engine`] clone (one per worker) drops.
+/// Runs on its own OS thread rather than a tokio task because:
+///
+/// - `Engine::increment_epoch` is signal-safe — no need for
+///   async.
+/// - Workers run on `spawn_blocking`; if the tokio reactor ever
+///   stalls under load the ticker still fires, preserving the
+///   deadline guarantee.
+///
+/// Failure to spawn the ticker is fatal: with
+/// `epoch_interruption=true` and no ticker, every plugin call
+/// would trap on the first epoch check. Caller should treat this
+/// as a hard host bringup error.
+fn spawn_epoch_ticker(engine: &Engine) -> std::io::Result<()> {
+    let weak = engine.weak();
+    std::thread::Builder::new()
+        .name("tak-plugin-epoch".to_owned())
+        .spawn(move || {
+            loop {
+                std::thread::sleep(TICK_INTERVAL);
+                match weak.upgrade() {
+                    Some(eng) => eng.increment_epoch(),
+                    None => break,
+                }
+            }
+            debug!("plugin-host: epoch ticker exited (engine dropped)");
+        })?;
+    Ok(())
+}
+
 #[allow(clippy::needless_pass_by_value)] // takes ownership of Component+Linker for the worker's lifetime
 fn run_worker(
     name: String,
@@ -303,6 +345,7 @@ fn run_worker(
 
     let init_json = plugin_cfg.init_json().to_owned();
     let mem_cap_bytes = plugin_cfg.memory_bytes_cap();
+    let cpu_budget_ticks = u64::from(plugin_cfg.limits.max_cpu_ms_per_msg).max(1);
 
     let mut store = Store::new(
         &engine,
@@ -329,6 +372,9 @@ fn run_worker(
         }
     };
 
+    // Init gets a fixed 1 s budget per the design doc. Per-call
+    // budget is the operator-supplied `max-cpu-ms-per-msg`.
+    store.set_epoch_deadline(INIT_DEADLINE_TICKS);
     if let Err(e) = bindings
         .tak_plugin_inbound()
         .call_init(&mut store, &init_json)
@@ -350,6 +396,10 @@ fn run_worker(
             send_time_ms: event.send_time_ms,
             sender_groups_low: event.sender_groups_low,
         };
+        // Reset the deadline every call — it's relative to the
+        // current epoch, so without reset the budget collapses to
+        // zero after the first call.
+        store.set_epoch_deadline(cpu_budget_ticks);
         match bindings
             .tak_plugin_inbound()
             .call_on_inbound(&mut store, &cot)
@@ -360,7 +410,22 @@ fn run_worker(
                 // Pass/Drop/Replace) lands in a follow-up commit.
             }
             Err(e) => {
-                warn!(plugin = %name, error = ?e, "plugin-host: on_inbound trapped");
+                // Once a wasmtime component traps (CPU budget,
+                // memory limit, panic, anything) it can't be
+                // re-entered — the next call returns "cannot enter
+                // component instance" forever. So the only sane
+                // recovery is to unload the worker. A retry/strike
+                // counter sounds appealing but only spams the log
+                // with cascading entry failures; future work can
+                // reinstantiate the Store on trap to actually
+                // recover.
+                warn!(
+                    plugin = %name,
+                    processed,
+                    error = ?e,
+                    "plugin-host: on_inbound trapped; unloading worker (component dead until restart)"
+                );
+                break;
             }
         }
         processed += 1;

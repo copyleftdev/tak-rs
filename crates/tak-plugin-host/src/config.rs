@@ -75,7 +75,13 @@ impl Default for LimitsSection {
     fn default() -> Self {
         Self {
             max_memory_mb: 32,
-            max_cpu_ms_per_msg: 1,
+            // 5 ms is enough headroom for plugins that allocate
+            // (e.g. format!()-heavy heartbeat paths) without
+            // racing the 1 ms epoch ticker. Operators wanting
+            // stricter caps can lower this; anything below
+            // ~2 ms tends to false-trap on plugins that touch
+            // host imports during a normal call.
+            max_cpu_ms_per_msg: 5,
             max_rss_leak_mb: 0,
         }
     }

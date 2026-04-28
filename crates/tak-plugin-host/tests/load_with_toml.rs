@@ -90,6 +90,88 @@ async fn host_loads_example_plugin_with_bundled_toml() {
 }
 
 #[tokio::test]
+async fn tight_cpu_budget_eventually_traps_and_unloads_worker() {
+    // The geofence-redact plugin's heartbeat path (every 1000
+    // events) formats a string + crosses a host import — that's
+    // the work that exceeds a 1 ms epoch budget on an idle box.
+    // Setting `max-cpu-ms-per-msg = 1` should let several thousand
+    // pure-compare calls succeed, then the heartbeat traps and
+    // the worker exits permanently.
+    //
+    // This test is the load-bearing assertion that the budget
+    // enforcement is wired and not a no-op.
+    let wasm = example_wasm_path();
+    if !wasm.exists() {
+        eprintln!("skipping: example wasm not built");
+        return;
+    }
+
+    let dir = tempfile::tempdir().expect("tempdir");
+    std::fs::copy(&wasm, dir.path().join("geofence_redact.wasm")).expect("copy wasm");
+    std::fs::write(
+        dir.path().join("geofence_redact.toml"),
+        // Same plugin-config as the bundled toml so the plugin
+        // does its full heartbeat work; budget squeezed to 1 ms.
+        r#"
+            [limits]
+            max-cpu-ms-per-msg = 1
+
+            [capabilities]
+            plugin-config = '{ "drop_below_lat": 36.0 }'
+        "#,
+    )
+    .expect("write toml");
+
+    let cfg = PluginHostConfig {
+        plugin_dir: dir.path().to_path_buf(),
+        queue_capacity: 256,
+    };
+    let host = PluginHost::new(cfg).await.expect("host comes up");
+    assert_eq!(host.len(), 1);
+
+    let event = PluginEvent {
+        payload: Bytes::from_static(b""),
+        cot_type: "a-f-G-U-C".to_owned(),
+        uid: "TEST-OVERRUN".to_owned(),
+        callsign: Some("X".to_owned()),
+        lat: 35.0, // below threshold so plugin tries to drop+log
+        lon: -80.0,
+        hae: 0.0,
+        send_time_ms: 0,
+        sender_groups_low: 0,
+    };
+
+    // Pump events with a small inter-batch sleep so the worker
+    // can drain. After the heartbeat traps the worker, the rx
+    // closes and `publish` returns 0 forever after.
+    let mut saw_unload = false;
+    for batch in 0..50u32 {
+        for _ in 0..256 {
+            let _ = host.publish(event.clone());
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        if host.publish(event.clone()) == 0 {
+            saw_unload = true;
+            // Once unloaded, every subsequent publish must also
+            // be 0 (the channel doesn't recover).
+            for _ in 0..10 {
+                assert_eq!(host.publish(event.clone()), 0);
+            }
+            break;
+        }
+        // Bail-out so the test isn't open-ended if something
+        // changes that prevents the trap.
+        if batch > 30 && !saw_unload {
+            panic!("worker did not unload after {batch} batches; budget enforcement broken");
+        }
+    }
+    assert!(
+        saw_unload,
+        "expected the 1 ms budget to trap + unload the worker"
+    );
+}
+
+#[tokio::test]
 async fn disabled_plugin_is_skipped() {
     let wasm = example_wasm_path();
     if !wasm.exists() {
