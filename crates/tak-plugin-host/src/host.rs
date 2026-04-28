@@ -20,6 +20,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
+use bytes::Bytes;
 use tokio::sync::mpsc;
 use tracing::{debug, info, warn};
 use wasmtime::component::{Component, HasSelf, Linker, ResourceTable};
@@ -27,7 +28,7 @@ use wasmtime::{Config, Engine, ResourceLimiter, Store};
 use wasmtime_wasi::{WasiCtx, WasiCtxBuilder, WasiCtxView, WasiView};
 
 use crate::Error;
-use crate::bindings::{TakPlugin, clock, inbound::CotEvent, log};
+use crate::bindings::{TakPlugin, clock, inbound::Action, inbound::CotEvent, log};
 use crate::config::PluginConfig;
 use crate::event::{PluginAction, PluginEvent};
 
@@ -40,6 +41,12 @@ pub struct PluginHostConfig {
     /// at the queue boundary. Sized so that ~50 ms of plugin lag
     /// at 50 k msg/s = 2 500 events fits.
     pub queue_capacity: usize,
+    /// Capacity of the shared outbound channel that carries
+    /// [`Action::Replace`] verdicts back to the firehose for
+    /// re-dispatch. Replace is documented as rare (decision 0004),
+    /// so 1 024 slots is plenty; full = drop the replacement at
+    /// the channel boundary.
+    pub outbound_capacity: usize,
 }
 
 impl Default for PluginHostConfig {
@@ -47,6 +54,7 @@ impl Default for PluginHostConfig {
         Self {
             plugin_dir: PathBuf::from("./plugins"),
             queue_capacity: 2_500,
+            outbound_capacity: 1_024,
         }
     }
 }
@@ -86,10 +94,19 @@ impl Plugin {
 }
 
 /// The plugin host — owns the wasmtime engine and the loaded
-/// plugin set.
+/// plugin set, plus the shared outbound channel for
+/// [`Action::Replace`] verdicts.
 #[derive(Debug)]
 pub struct PluginHost {
     plugins: Vec<Plugin>,
+    /// Receiver for replacement frames produced by plugins. Taken
+    /// once at startup by the firehose's re-dispatch task; `None`
+    /// after that.
+    outbound_rx: Option<mpsc::Receiver<Bytes>>,
+    /// Counts replacement frames dropped because the outbound
+    /// channel was full when the worker tried to push them. Useful
+    /// for an operator-visible metric without per-plugin counters.
+    outbound_dropped: Arc<AtomicU64>,
 }
 
 impl PluginHost {
@@ -126,6 +143,9 @@ impl PluginHost {
         let engine = Engine::new(&wasm_config)?;
         spawn_epoch_ticker(&engine).map_err(|e| Error::Other(anyhow::Error::new(e)))?;
 
+        let (outbound_tx, outbound_rx) = mpsc::channel::<Bytes>(config.outbound_capacity);
+        let outbound_dropped = Arc::new(AtomicU64::new(0));
+
         let mut plugins = Vec::new();
         let entries = std::fs::read_dir(&config.plugin_dir)
             .map_err(|e| Error::Other(anyhow::Error::new(e)))?;
@@ -134,7 +154,15 @@ impl PluginHost {
             if path.extension().is_none_or(|e| e != "wasm") {
                 continue;
             }
-            match Self::load_plugin(&engine, &path, &config).await {
+            match Self::load_plugin(
+                &engine,
+                &path,
+                &config,
+                outbound_tx.clone(),
+                outbound_dropped.clone(),
+            )
+            .await
+            {
                 Ok(Some(plugin)) => {
                     info!(
                         plugin = %plugin.name,
@@ -153,13 +181,40 @@ impl PluginHost {
         }
 
         info!(loaded = plugins.len(), "plugin-host: ready");
-        Ok(Self { plugins })
+        Ok(Self {
+            plugins,
+            outbound_rx: Some(outbound_rx),
+            outbound_dropped,
+        })
+    }
+
+    /// Take the outbound replacement-frame receiver. The firehose
+    /// is expected to call this exactly once at startup and spawn
+    /// a re-dispatch task that drains it. Returns `None` on every
+    /// call after the first.
+    ///
+    /// Replacement frames are produced by plugins returning
+    /// [`Action::Replace`]; the host validates nothing — the
+    /// receiver is responsible for `framing::decode_stream` +
+    /// `TakMessage::decode` before re-dispatching.
+    pub fn take_outbound(&mut self) -> Option<mpsc::Receiver<Bytes>> {
+        self.outbound_rx.take()
+    }
+
+    /// Total replacement frames dropped because the outbound
+    /// channel was full. Counter is shared across all plugins
+    /// (per-plugin attribution is future work).
+    #[must_use]
+    pub fn outbound_dropped_count(&self) -> u64 {
+        self.outbound_dropped.load(Ordering::Relaxed)
     }
 
     async fn load_plugin(
         engine: &Engine,
         path: &Path,
         config: &PluginHostConfig,
+        outbound_tx: mpsc::Sender<Bytes>,
+        outbound_dropped: Arc<AtomicU64>,
     ) -> Result<Option<Plugin>, Error> {
         let name = path
             .file_stem()
@@ -249,6 +304,8 @@ impl PluginHost {
                 linker_for_worker,
                 plugin_cfg_for_worker,
                 rx,
+                outbound_tx,
+                outbound_dropped,
             );
         });
 
@@ -329,7 +386,12 @@ fn spawn_epoch_ticker(engine: &Engine) -> std::io::Result<()> {
     Ok(())
 }
 
-#[allow(clippy::needless_pass_by_value)] // takes ownership of Component+Linker for the worker's lifetime
+// `run_worker` parks a thread for the lifetime of the plugin and
+// owns several heavy resources (Component + Linker + Engine
+// clone); bundling them into a struct just to placate the
+// "too_many_arguments" lint adds boilerplate without making the
+// code easier to read. Internal fn, narrow blast radius.
+#[allow(clippy::needless_pass_by_value, clippy::too_many_arguments)]
 fn run_worker(
     name: String,
     engine: Engine,
@@ -337,6 +399,8 @@ fn run_worker(
     linker: Linker<HostState>,
     plugin_cfg: PluginConfig,
     mut rx: mpsc::Receiver<PluginEvent>,
+    outbound_tx: mpsc::Sender<Bytes>,
+    outbound_dropped: Arc<AtomicU64>,
 ) {
     // Deny-everything WasiCtx: no preopens, no env, no stdio
     // inheritance. Plugins that try to print() or read clock_now()
@@ -404,11 +468,30 @@ fn run_worker(
             .tak_plugin_inbound()
             .call_on_inbound(&mut store, &cot)
         {
-            Ok(_action) => {
-                // v0: we observe but don't act on the action yet.
-                // The firehose-side wiring (which interprets
-                // Pass/Drop/Replace) lands in a follow-up commit.
-            }
+            Ok(action) => match action {
+                Action::Pass | Action::Drop => {
+                    // Pass + Drop are no-ops on the secondary
+                    // path: the original frame already went out
+                    // through the bus before this worker even
+                    // saw it (decision 0004 invariant — plugins
+                    // observe AFTER primary dispatch). The
+                    // distinction matters only for plugin-
+                    // internal logging.
+                }
+                Action::Replace(new_bytes) => {
+                    // Replacement frame — re-dispatch as a new
+                    // event. Vec<u8> from wasm becomes a Bytes
+                    // here (one-time alloc on the cold path;
+                    // Replace is documented as rare). Receiver
+                    // is in the firehose; if it's full we
+                    // drop and bump the metric rather than
+                    // backpressure the worker.
+                    let frame = Bytes::from(new_bytes);
+                    if let Err(mpsc::error::TrySendError::Full(_)) = outbound_tx.try_send(frame) {
+                        outbound_dropped.fetch_add(1, Ordering::Relaxed);
+                    }
+                }
+            },
             Err(e) => {
                 // Once a wasmtime component traps (CPU budget,
                 // memory limit, panic, anything) it can't be

@@ -52,6 +52,7 @@ async fn host_loads_example_plugin_with_bundled_toml() {
     let cfg = PluginHostConfig {
         plugin_dir: dir.path().to_path_buf(),
         queue_capacity: 16,
+        ..Default::default()
     };
     let host = PluginHost::new(cfg).await.expect("plugin host comes up");
     assert_eq!(host.len(), 1, "geofence_redact should be loaded");
@@ -125,6 +126,7 @@ async fn tight_cpu_budget_eventually_traps_and_unloads_worker() {
     let cfg = PluginHostConfig {
         plugin_dir: dir.path().to_path_buf(),
         queue_capacity: 256,
+        ..Default::default()
     };
     let host = PluginHost::new(cfg).await.expect("host comes up");
     assert_eq!(host.len(), 1);
@@ -190,6 +192,7 @@ async fn disabled_plugin_is_skipped() {
     let cfg = PluginHostConfig {
         plugin_dir: dir.path().to_path_buf(),
         queue_capacity: 16,
+        ..Default::default()
     };
     let host = PluginHost::new(cfg).await.expect("plugin host comes up");
     assert_eq!(

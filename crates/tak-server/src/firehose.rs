@@ -242,6 +242,69 @@ async fn read_loop(
     }
 }
 
+/// Drain replacement frames produced by plugins (`Action::Replace`)
+/// and re-feed them through the dispatch pipeline.
+///
+/// Each frame went through a wasm worker, so we revalidate framing
+/// and protobuf before re-dispatching — a buggy or malicious
+/// plugin must not be able to crash the server with malformed
+/// bytes.
+///
+/// Replace events deliberately *do not* get re-fed to plugins: a
+/// plugin that re-emits the same bytes it just saw would cause an
+/// infinite loop, and the design doc (decision 0004) explicitly
+/// scopes plugins to "observe + maybe inject", not "consume their
+/// own output".
+///
+/// Returns when the receiver closes (i.e., the plugin host
+/// dropped, which only happens on shutdown).
+pub async fn run_plugin_replay(
+    mut rx: mpsc::Receiver<Bytes>,
+    bus: Arc<Bus>,
+    store: Store,
+    persist: PersistMode,
+) {
+    let mut scratch = DispatchScratch::default();
+    let mut accepted: u64 = 0;
+    let mut rejected: u64 = 0;
+    info!("plugin replay: drainer started");
+    while let Some(framed) = rx.recv().await {
+        let proto_payload = match framing::decode_stream(&framed[..]) {
+            Ok((_, p)) => p,
+            Err(e) => {
+                warn!(error = ?e, "plugin replay: invalid framing; dropped");
+                rejected += 1;
+                continue;
+            }
+        };
+        let msg = match TakMessage::decode(proto_payload) {
+            Ok(m) => m,
+            Err(e) => {
+                warn!(error = ?e, "plugin replay: invalid TakMessage; dropped");
+                rejected += 1;
+                continue;
+            }
+        };
+        let outcome = match persist {
+            PersistMode::On => {
+                pipeline::dispatch_and_persist(&bus, &store, &msg, ALL_GROUPS, framed, &mut scratch)
+                    .map(|_| ())
+            }
+            PersistMode::Off => {
+                pipeline::dispatch_only(&bus, &msg, ALL_GROUPS, framed, &mut scratch).map(|_| ())
+            }
+        };
+        match outcome {
+            Ok(()) => accepted += 1,
+            Err(e) => {
+                warn!(error = ?e, "plugin replay: pipeline rejected");
+                rejected += 1;
+            }
+        }
+    }
+    info!(accepted, rejected, "plugin replay: drainer exited");
+}
+
 /// Build a [`PluginEvent`] from a decoded `TakMessage`. Returns
 /// `None` if the message has no `cot_event` payload (which means
 /// it's a TAK control frame with no app-level CoT — plugins don't

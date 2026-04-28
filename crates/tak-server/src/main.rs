@@ -130,25 +130,34 @@ async fn main() -> Result<()> {
     // Optional wasm plugin host. Loaded once at startup; hot-reload
     // is future work. Failure to load any single plugin is logged
     // but doesn't abort startup.
-    let plugin_host: Option<std::sync::Arc<tak_plugin_host::PluginHost>> =
-        if let Some(dir) = args.plugin_dir.clone() {
-            let cfg = tak_plugin_host::PluginHostConfig {
-                plugin_dir: dir,
-                ..Default::default()
-            };
-            match tak_plugin_host::PluginHost::new(cfg).await {
-                Ok(host) => {
-                    info!(loaded = host.len(), "plugin host ready");
-                    Some(std::sync::Arc::new(host))
-                }
-                Err(e) => {
-                    warn!(error = ?e, "plugin host failed to start; continuing without plugins");
-                    None
-                }
-            }
-        } else {
-            None
+    //
+    // The outbound receiver is taken before wrapping the host in
+    // an Arc — `take_outbound` needs `&mut`, and Arc-wrapped values
+    // can't be mutated. The receiver is then handed to the plugin
+    // replay drainer (`firehose::run_plugin_replay`), which feeds
+    // `Action::Replace` frames back through the pipeline.
+    let (plugin_host, plugin_outbound): (
+        Option<std::sync::Arc<tak_plugin_host::PluginHost>>,
+        Option<tokio::sync::mpsc::Receiver<bytes::Bytes>>,
+    ) = if let Some(dir) = args.plugin_dir.clone() {
+        let cfg = tak_plugin_host::PluginHostConfig {
+            plugin_dir: dir,
+            ..Default::default()
         };
+        match tak_plugin_host::PluginHost::new(cfg).await {
+            Ok(mut host) => {
+                let outbound = host.take_outbound();
+                info!(loaded = host.len(), "plugin host ready");
+                (Some(std::sync::Arc::new(host)), outbound)
+            }
+            Err(e) => {
+                warn!(error = ?e, "plugin host failed to start; continuing without plugins");
+                (None, None)
+            }
+        }
+    } else {
+        (None, None)
+    };
 
     let api_listener = TcpListener::bind(args.listen_api)
         .await
@@ -217,6 +226,17 @@ async fn main() -> Result<()> {
             warn!(error = ?e, "mission api exited");
         }
     });
+
+    // Plugin replay drainer: feeds `Action::Replace` frames from
+    // the wasm worker pool back through the dispatch pipeline. The
+    // task lives for the whole process lifetime; it exits only
+    // when the plugin host drops, which only happens at shutdown.
+    if let Some(rx) = plugin_outbound {
+        let bus = bus.clone();
+        let store = store.clone();
+        #[allow(clippy::disallowed_methods)]
+        tokio::spawn(firehose::run_plugin_replay(rx, bus, store, persist));
+    }
 
     // Optional QUIC firehose listener. Bound to its own UDP port
     // alongside the TCP firehose; both can be live at once.
