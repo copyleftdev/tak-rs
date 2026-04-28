@@ -20,6 +20,9 @@ bytes        .workspace = true
 criterion .workspace = true
 dhat      .workspace = true
 
+[target.'cfg(loom)'.dev-dependencies]
+loom = { workspace = true }
+
 [lints]
 workspace = true
 

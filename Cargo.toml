@@ -122,6 +122,8 @@ missing_docs                  = "warn"
 unreachable_pub               = "warn"
 # A1: every public type Debug. (rustc lint, not clippy.)
 missing_debug_implementations = "warn"
+# Acknowledge the `loom` cfg used in tak-bus tests/loom_dispatch.rs.
+unexpected_cfgs               = { level = "warn", check-cfg = ['cfg(loom)'] }
 
 [workspace.lints.clippy]
 # D1: no panic paths in lib code.
