@@ -18,6 +18,7 @@ bytes        .workspace = true
 
 [dev-dependencies]
 criterion .workspace = true
+dhat      .workspace = true
 
 [lints]
 workspace = true
