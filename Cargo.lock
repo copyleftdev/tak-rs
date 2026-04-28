@@ -2422,8 +2422,10 @@ dependencies = [
 name = "tak-net"
 version = "0.0.1"
 dependencies = [
+ "quick-xml",
  "rcgen",
  "rustls",
+ "serde",
  "thiserror 2.0.18",
  "tokio",
  "tokio-rustls",

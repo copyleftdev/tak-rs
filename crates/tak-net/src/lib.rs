@@ -47,6 +47,7 @@ pub mod ports {
     pub const FED_V2: u16 = 9001;
 }
 
+pub mod auth;
 pub mod conn;
 pub mod listener;
 pub mod tasks;
@@ -71,9 +72,19 @@ pub enum Error {
     #[error("config: required field not set: {0}")]
     MissingField(&'static str),
 
+    /// XML parse failure (UserAuthenticationFile.xml or similar).
+    #[error("xml: {0}")]
+    Xml(String),
+
     /// Underlying I/O failure (file read on the convenience helpers).
     #[error("io: {0}")]
     Io(#[from] std::io::Error),
+}
+
+impl From<quick_xml::DeError> for Error {
+    fn from(e: quick_xml::DeError) -> Self {
+        Self::Xml(e.to_string())
+    }
 }
 
 /// Convenience result type used across the crate.
