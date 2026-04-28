@@ -37,6 +37,9 @@ x509-parser  = "0.16"
 # --- bytes + zero-copy (Lerche) ---
 bytes = "1"
 
+# --- crypto: hashing only (TLS uses rustls/aws_lc_rs separately) ---
+sha2 = "0.10"
+
 # --- test-only cert generation ---
 rcgen = { version = "0.13", default-features = false, features = ["aws_lc_rs", "pem"] }
 

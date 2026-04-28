@@ -76,6 +76,24 @@ pub enum Error {
     #[error("xml: {0}")]
     Xml(String),
 
+    /// The peer cert chain has no leaf certificate.
+    #[error("auth: empty peer certificate chain")]
+    EmptyCertChain,
+
+    /// X.509 leaf cert failed to parse.
+    #[error("auth: x509 parse: {0}")]
+    X509Parse(String),
+
+    /// No user matches the presented certificate (by fingerprint or by CN).
+    /// Identifier shown is whichever lookup-key was tried first.
+    #[error("auth: unknown user (fingerprint={fingerprint}, cn={cn:?})")]
+    UnknownUser {
+        /// SHA-256 fingerprint of the leaf cert (upstream format: `XX:XX:...:XX`).
+        fingerprint: String,
+        /// Common Name extracted from the leaf cert subject DN, if available.
+        cn: Option<String>,
+    },
+
     /// Underlying I/O failure (file read on the convenience helpers).
     #[error("io: {0}")]
     Io(#[from] std::io::Error),
