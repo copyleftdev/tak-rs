@@ -41,6 +41,20 @@ gh pr create --fill
 Commit messages: imperative ("add X" not "added X"), scope prefix where
 useful (`tak-cot:`, `tak-bus:`, `docs:`). Body explains *why*, not *what*.
 
+## CHANGELOG.md
+
+Every PR that changes user-visible behaviour adds a one-line bullet to
+the `## [Unreleased]` section of `CHANGELOG.md`, under the appropriate
+[Keep a Changelog](https://keepachangelog.com/) heading (Added,
+Changed, Deprecated, Removed, Fixed, Security). Internal refactors,
+test-only changes, and doc-only changes are exempt — but if you
+catch yourself writing "this isn't user-visible" about a feature
+commit, it probably is.
+
+When we cut a release, the maintainer renames `[Unreleased]` to
+`[X.Y.Z] — YYYY-MM-DD`, opens a fresh `[Unreleased]` block at the top,
+and tags. Until v0.1, every commit lands under `[Unreleased]`.
+
 ## When pre-commit fails
 
 Don't `--no-verify`. The hook caught something the compiler didn't:

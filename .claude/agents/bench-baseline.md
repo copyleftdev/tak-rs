@@ -74,4 +74,19 @@ This history outlives criterion's `target/` and lets us plot trends over months.
 - Bench failed to run (compile error, panic). Pass the error to the user verbatim.
 - Wildly inconsistent runs (criterion's "noise" indicator high). Suggest re-running with `--measurement-time 60`.
 
+## bench/history/ rotation
+
+Each run drops a JSON into `bench/history/`. After several months this
+directory accumulates. Run `scripts/prune-bench-history.sh` (dry-run by
+default; `--apply` to commit deletions) to enforce the retention
+policy:
+
+- daily samples for the last 30 days
+- one per ISO-week between 30 and 180 days
+- one per calendar-month past 180 days, forever
+
+Files that don't match the `<tag>-YYYY-MM-DDTHH-MM-SSZ.json` shape are
+never touched. Pruning is operator-driven, not automatic, so you see
+what's about to disappear before committing the delete.
+
 You produce numbers, not opinions. The hot-path-perf agent decides what the numbers mean.
