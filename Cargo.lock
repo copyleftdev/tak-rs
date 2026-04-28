@@ -4568,6 +4568,7 @@ dependencies = [
 name = "tak-store"
 version = "0.0.1"
 dependencies = [
+ "bytes",
  "metrics",
  "sqlx",
  "testcontainers",

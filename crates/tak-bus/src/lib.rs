@@ -379,6 +379,44 @@ impl Bus {
         self.len() == 0
     }
 
+    /// Push one payload to a single subscription's mpsc, bypassing
+    /// the fan-out dispatch path.
+    ///
+    /// Used by the firehose's replay-on-reconnect path: when a new
+    /// connection subscribes, the server queries `cot_router` for
+    /// recent events and unicasts each frame to *only* that new
+    /// subscription. The bus's normal dispatch fans out events to
+    /// every matching sub, which is the wrong behavior here — we
+    /// want the replay to reach exactly one client.
+    ///
+    /// Returns:
+    /// - `true` if the frame was accepted by the channel.
+    /// - `false` if the subscription is gone, the channel is full
+    ///   (per-sub `dropped_full` is bumped), or the channel was
+    ///   already closed.
+    ///
+    /// Off the H1 hot path — replay queries are per-connection, run
+    /// inside the accept handler, not the per-message dispatch loop.
+    pub fn try_send_to(&self, id: SubscriptionId, payload: Bytes) -> bool {
+        let Some(entry) = self.subs.get(id.slab_key) else {
+            return false;
+        };
+        if entry.generation != id.generation {
+            return false;
+        }
+        match entry.sender.try_send(payload) {
+            Ok(()) => {
+                entry.delivered.fetch_add(1, Ordering::Relaxed);
+                true
+            }
+            Err(tokio::sync::mpsc::error::TrySendError::Full(_)) => {
+                entry.dropped_full.fetch_add(1, Ordering::Relaxed);
+                false
+            }
+            Err(tokio::sync::mpsc::error::TrySendError::Closed(_)) => false,
+        }
+    }
+
     /// Snapshot per-subscription delivery + drop counts.
     ///
     /// Walks the side-table of live ids once, reading two relaxed

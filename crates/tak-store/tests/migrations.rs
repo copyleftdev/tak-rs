@@ -139,6 +139,7 @@ fn synth(uid: &str) -> CotInsert {
         ce: 9.0,
         le: 9_999_999.0,
         detail: r#"<takv platform="ATAK-CIV"/>"#.to_owned(),
+        wire_bytes: bytes::Bytes::from_static(&[0xBF, 0x00]),
     }
 }
 

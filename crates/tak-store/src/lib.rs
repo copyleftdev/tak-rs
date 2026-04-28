@@ -100,6 +100,11 @@ pub struct CotInsert {
     pub le: f64,
     /// `<detail>` content from the original CoT XML; serialised verbatim.
     pub detail: String,
+    /// Original Protocol-v1 framed bytes (`0xBF <varint length>
+    /// <protobuf>`). Stored so replay-on-reconnect can deliver the
+    /// exact bytes ATAK saw, satisfying the byte-identity invariant
+    /// without re-encoding from the decomposed columns.
+    pub wire_bytes: bytes::Bytes,
 }
 
 /// Returned by [`Store::try_insert_event`] when the channel is full.
@@ -241,6 +246,40 @@ impl Store {
         self.inserted.load(Ordering::Relaxed)
     }
 
+    /// Read the framed wire bytes for every persisted event whose
+    /// `servertime` is within the last `window` and whose
+    /// `wire_bytes` column is populated. Ordered oldest-first so a
+    /// replay caller can fan them out in arrival order.
+    ///
+    /// Off the H1 hot path — the firehose calls this once per
+    /// new connection inside its accept handler (a tokio task,
+    /// not the dispatch loop). The query is index-backed by
+    /// `cot_router_servertime_replay_idx` and bounded by
+    /// `window`, so the worst case is "all rows in the window."
+    /// Caller is expected to apply a per-connection budget cap.
+    ///
+    /// # Errors
+    ///
+    /// - [`Error::Sqlx`] on query failure (network blip, schema
+    ///   missing, etc.).
+    pub async fn recent_wire_bytes(&self, window: Duration) -> Result<Vec<bytes::Bytes>> {
+        // The interval is constructed in Rust so we don't have to
+        // bind a sqlx-side Postgres interval — interval-from-seconds
+        // via `make_interval(secs => $1)` works with a plain f64.
+        #[allow(clippy::cast_precision_loss)]
+        let secs = window.as_secs_f64();
+        let rows: Vec<(Vec<u8>,)> = sqlx::query_as(
+            "SELECT wire_bytes FROM cot_router \
+             WHERE wire_bytes IS NOT NULL \
+               AND servertime >= now() - make_interval(secs => $1) \
+             ORDER BY servertime ASC",
+        )
+        .bind(secs)
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows.into_iter().map(|(b,)| bytes::Bytes::from(b)).collect())
+    }
+
     /// Total events dropped by [`Self::try_insert_event`] due to a full
     /// channel.
     #[must_use]
@@ -364,14 +403,15 @@ async fn flush(pool: &PgPool, buf: &mut Vec<CotInsert>, inserted: &Arc<AtomicU64
         // bindings beyond what we have today).
         if let Err(err) = sqlx::query(
             "INSERT INTO cot_router \
-              (uid, cot_type, time, start, stale, how, point_hae, point_ce, point_le, detail, event_pt) \
+              (uid, cot_type, time, start, stale, how, point_hae, point_ce, point_le, detail, event_pt, wire_bytes) \
               VALUES (\
                   $1, $2, \
                   to_timestamp($3::float8 / 1000.0), \
                   to_timestamp($4::float8 / 1000.0), \
                   to_timestamp($5::float8 / 1000.0), \
                   $6, $7, $8, $9, $10, \
-                  ST_SetSRID(ST_MakePoint($11, $12), 4326)\
+                  ST_SetSRID(ST_MakePoint($11, $12), 4326), \
+                  $13\
               )",
         )
         .bind(&ev.uid)
@@ -386,6 +426,7 @@ async fn flush(pool: &PgPool, buf: &mut Vec<CotInsert>, inserted: &Arc<AtomicU64
         .bind(&ev.detail)
         .bind(ev.lon)
         .bind(ev.lat)
+        .bind(ev.wire_bytes.as_ref())
         .execute(&mut *tx)
         .await
         {

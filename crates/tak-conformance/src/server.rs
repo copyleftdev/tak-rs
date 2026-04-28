@@ -70,13 +70,27 @@ impl std::fmt::Debug for TestServer {
 }
 
 impl TestServer {
-    /// Boot a conformance test server. Returns once the firehose
-    /// listener is accepting connections.
+    /// Boot a conformance test server with default config (no
+    /// replay-on-reconnect). Equivalent to `start_with(None)`.
     ///
     /// # Errors
     ///
     /// See [`TestServerError`].
     pub async fn start() -> Result<Self, TestServerError> {
+        Self::start_with(None).await
+    }
+
+    /// Boot a conformance test server with an optional replay
+    /// window. Pass `Some(d)` for scenarios that exercise the
+    /// replay-on-reconnect path; `None` for scenarios that need
+    /// the legacy "no replay" behavior (e.g. the PLI byte-identity
+    /// test, which would race a phantom replay against live
+    /// dispatch otherwise).
+    ///
+    /// # Errors
+    ///
+    /// See [`TestServerError`].
+    pub async fn start_with(replay_window: Option<Duration>) -> Result<Self, TestServerError> {
         let (pg, url) = start_postgis().await?;
         let store = Store::connect_and_migrate(&url)
             .await
@@ -97,6 +111,7 @@ impl TestServer {
                 store_for_loop,
                 PersistMode::On,
                 None,
+                replay_window,
             )
             .await
             {

@@ -23,7 +23,13 @@ use tak_conformance::{Outcome, Scenario, TestServer};
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "needs Docker"]
 async fn conformance_suite() {
-    let server = TestServer::start().await.expect("test server start");
+    // 60 s replay window is enough for the replay scenario; the
+    // PLI byte-identity scenario opens its subscriber BEFORE any
+    // event is persisted, so its replay query finds 0 rows and
+    // doesn't perturb the assertion.
+    let server = TestServer::start_with(Some(std::time::Duration::from_secs(60)))
+        .await
+        .expect("test server start");
 
     let scenarios: Vec<Box<dyn Scenario>> = vec![
         Box::new(PliDispatchByteIdentity),

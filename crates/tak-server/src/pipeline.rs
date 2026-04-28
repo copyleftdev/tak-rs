@@ -113,6 +113,10 @@ pub fn dispatch_and_persist(
             .as_ref()
             .map(|d| d.xml_detail.clone())
             .unwrap_or_default(),
+        // Stored verbatim for byte-perfect replay-on-reconnect.
+        // `Bytes::clone` is an Arc bump (H3); the framed payload
+        // already exists from the dispatch path.
+        wire_bytes: payload.clone(),
     };
     let persisted = store.try_insert_event(cot_insert).is_ok();
 

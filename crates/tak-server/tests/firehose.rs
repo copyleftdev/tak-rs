@@ -78,6 +78,7 @@ async fn firehose_dispatches_and_persists_a_real_frame() {
             store_for_loop,
             PersistMode::On,
             None,
+            None,
         )
         .await;
     });

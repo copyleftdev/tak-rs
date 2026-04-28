@@ -83,12 +83,14 @@ pub async fn run(
     store: Store,
     persist: PersistMode,
     plugin_host: Option<Arc<PluginHost>>,
+    replay_window: Option<std::time::Duration>,
 ) -> Result<()> {
     let connection_id = Arc::new(AtomicU64::new(0));
     info!(
         addr = ?listener.local_addr().ok(),
         ?persist,
         plugins = plugin_host.as_deref().map(PluginHost::len).unwrap_or(0),
+        replay_window_secs = replay_window.map(|d| d.as_secs()),
         "firehose: accept loop started"
     );
 
@@ -112,12 +114,13 @@ pub async fn run(
         #[allow(clippy::disallowed_methods)]
         tokio::spawn(async move {
             debug!(conn = id, peer = %peer, "firehose: accepted");
-            handle_connection(id, sock, bus, store, persist, plugin_host).await;
+            handle_connection(id, sock, bus, store, persist, plugin_host, replay_window).await;
             debug!(conn = id, "firehose: closed");
         });
     }
 }
 
+#[allow(clippy::too_many_arguments)] // per-connection setup, narrow blast radius
 async fn handle_connection(
     id: u64,
     sock: TcpStream,
@@ -125,6 +128,7 @@ async fn handle_connection(
     store: Store,
     persist: PersistMode,
     plugin_host: Option<Arc<PluginHost>>,
+    replay_window: Option<std::time::Duration>,
 ) {
     let (read, write) = sock.into_split();
 
@@ -133,9 +137,47 @@ async fn handle_connection(
         ..Filter::default()
     };
     let (handle, rx) = bus.subscribe(filter);
+    let sub_id = handle.id();
 
     #[allow(clippy::disallowed_methods)]
     let writer = tokio::spawn(write_loop(id, write, rx));
+
+    // Replay-on-reconnect: query recent persisted events and unicast
+    // them to the new subscription's mpsc before live dispatch
+    // begins. ATAK-side dedup keys on (uid, time) so an interleave
+    // with fresh fan-out is harmless.
+    //
+    // Off the H1 hot path — this runs once per accept, on the
+    // accept handler's task, not on the per-message dispatch loop.
+    if let Some(window) = replay_window
+        && window.as_secs() > 0
+    {
+        match store.recent_wire_bytes(window).await {
+            Ok(frames) => {
+                let mut sent = 0u64;
+                let mut dropped = 0u64;
+                for frame in frames {
+                    if bus.try_send_to(sub_id, frame) {
+                        sent += 1;
+                    } else {
+                        dropped += 1;
+                    }
+                }
+                if sent > 0 || dropped > 0 {
+                    info!(
+                        conn = id,
+                        sent,
+                        dropped,
+                        window_secs = window.as_secs(),
+                        "firehose: replayed recent events to new subscriber"
+                    );
+                }
+            }
+            Err(e) => {
+                warn!(conn = id, error = ?e, "firehose: replay query failed; continuing without replay");
+            }
+        }
+    }
 
     if let Err(e) = read_loop(id, read, &bus, &store, persist, plugin_host.as_deref()).await {
         debug!(conn = id, error = ?e, "firehose: reader exit");

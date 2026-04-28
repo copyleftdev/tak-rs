@@ -64,6 +64,16 @@ struct Args {
     #[arg(long, env = "TAK_NO_PERSIST", default_value_t = false)]
     no_persist: bool,
 
+    /// On every new firehose connection, replay all persisted CoT
+    /// events from the last N seconds into that subscriber's
+    /// channel. Lets a reconnecting ATAK client recover its
+    /// situational picture without waiting for live PLIs from
+    /// every peer. `0` disables replay (behavior before this
+    /// flag landed); also implicitly disabled when `--no-persist`
+    /// is on. Default: 60 s.
+    #[arg(long, env = "TAK_REPLAY_WINDOW_SECS", default_value_t = 60)]
+    replay_window_secs: u64,
+
     /// Run the firehose on a multi-threaded compio (io_uring)
     /// runtime instead of the default tokio reactor. Linux-only.
     /// The mission API stays on tokio either way.
@@ -126,6 +136,11 @@ async fn main() -> Result<()> {
         PersistMode::Off
     } else {
         PersistMode::On
+    };
+    let replay_window = if args.no_persist || args.replay_window_secs == 0 {
+        None
+    } else {
+        Some(std::time::Duration::from_secs(args.replay_window_secs))
     };
 
     // Install the Prometheus exporter early so any metric emitted
@@ -245,8 +260,15 @@ async fn main() -> Result<()> {
                         return;
                     }
                 };
-                if let Err(e) =
-                    firehose::run(cot_listener, bus, store, persist, plugin_host_for_firehose).await
+                if let Err(e) = firehose::run(
+                    cot_listener,
+                    bus,
+                    store,
+                    persist,
+                    plugin_host_for_firehose,
+                    replay_window,
+                )
+                .await
                 {
                     warn!(error = ?e, "firehose loop exited");
                 }
