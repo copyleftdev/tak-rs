@@ -35,14 +35,16 @@ tak-proto       .workspace = true
 tak-cot         .workspace = true
 tak-mission     .workspace = true
 tak-plugin-host .workspace = true
+tak-net         .workspace = true
 
 metrics                     .workspace = true
 metrics-exporter-prometheus .workspace = true
 
 # QUIC firehose (quinn over rustls). Opt-in via `tak-server --quic`.
-quinn  .workspace = true
-rustls .workspace = true
-rcgen  .workspace = true
+quinn        .workspace = true
+rustls       .workspace = true
+tokio-rustls .workspace = true
+rcgen        .workspace = true
 
 # Multi-threaded io_uring runtime — Linux-only opt-in via `tak-server --compio`.
 [target.'cfg(target_os = "linux")'.dependencies]

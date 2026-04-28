@@ -26,12 +26,17 @@ use bytes::{Bytes, BytesMut};
 use prost::Message;
 use tak_bus::{Bus, DispatchScratch, Filter, GroupBitvector};
 use tak_cot::framing;
+use tak_net::listener::accept_tls;
+#[allow(unused_imports)]
+// re-exported by run_tls()'s docs but not directly used in the type-namespace
+use tak_net::tls;
 use tak_plugin_host::{PluginEvent, PluginHost};
 use tak_proto::v1::TakMessage;
 use tak_store::Store;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::mpsc;
+use tokio_rustls::TlsAcceptor;
 use tracing::{debug, info, warn};
 
 use crate::pipeline;
@@ -120,6 +125,93 @@ pub async fn run(
     }
 }
 
+/// mTLS firehose accept loop. Production deployments should run this
+/// instead of [`run`]; ATAK clients connect with a client cert
+/// matching the server's truststore CA.
+///
+/// Per-connection flow:
+/// 1. Accept TCP + run TLS handshake via [`accept_tls`]
+///    (handshake failure logs + drops; no `unsafe`-ly accepted bytes).
+/// 2. Extract the client cert chain; log Subject DN at INFO so
+///    operators can correlate firehose activity to a specific
+///    cert.
+/// 3. Hand the now-encrypted stream to the same per-connection
+///    driver as plain TCP — same bus subscription, same replay,
+///    same plugin pipeline.
+///
+/// Group-policy mapping (turning the cert's CN/OUs into a
+/// [`GroupBitvector`]) is **not** wired here yet; every authed
+/// TLS connection still subscribes with `ALL_GROUPS`. That's the
+/// next punch-list item; this commit is the prerequisite that
+/// gives us cryptographic peer identity to map *from*.
+///
+/// # Errors
+///
+/// Returns when `TcpListener::accept` returns a fatal error. TLS
+/// handshake errors and per-connection failures are logged; they
+/// don't propagate.
+#[allow(clippy::too_many_arguments)]
+pub async fn run_tls(
+    listener: TcpListener,
+    acceptor: TlsAcceptor,
+    bus: Arc<Bus>,
+    store: Store,
+    persist: PersistMode,
+    plugin_host: Option<Arc<PluginHost>>,
+    replay_window: Option<std::time::Duration>,
+) -> Result<()> {
+    let connection_id = Arc::new(AtomicU64::new(0));
+    info!(
+        addr = ?listener.local_addr().ok(),
+        ?persist,
+        plugins = plugin_host.as_deref().map(PluginHost::len).unwrap_or(0),
+        replay_window_secs = replay_window.map(|d| d.as_secs()),
+        "firehose-tls: accept loop started"
+    );
+
+    loop {
+        // accept_tls combines TCP accept + handshake. A handshake
+        // failure already had a TCP connection: log + continue, never
+        // exit the loop.
+        let (authed, tls_stream) = match accept_tls(&listener, &acceptor).await {
+            Ok(pair) => pair,
+            Err(e) => {
+                warn!(error = ?e, "firehose-tls: accept/handshake failed; continuing");
+                continue;
+            }
+        };
+
+        let id = connection_id.fetch_add(1, Ordering::Relaxed);
+        let peer_dn = authed
+            .peer_dn()
+            .unwrap_or_else(|_| "<no-peer-dn>".to_owned());
+        let peer_addr = authed.peer_addr;
+
+        let bus = bus.clone();
+        let store = store.clone();
+        let plugin_host = plugin_host.clone();
+        #[allow(clippy::disallowed_methods)]
+        tokio::spawn(async move {
+            debug!(conn = id, peer = %peer_addr, %peer_dn, "firehose-tls: accepted");
+            // tokio::io::split for TlsStream — Mutex-backed but
+            // mandated by the TLS state machine being duplex.
+            let (read, write) = tokio::io::split(tls_stream);
+            drive_connection(
+                id,
+                read,
+                write,
+                bus,
+                store,
+                persist,
+                plugin_host,
+                replay_window,
+            )
+            .await;
+            debug!(conn = id, "firehose-tls: closed");
+        });
+    }
+}
+
 #[allow(clippy::too_many_arguments)] // per-connection setup, narrow blast radius
 async fn handle_connection(
     id: u64,
@@ -131,7 +223,39 @@ async fn handle_connection(
     replay_window: Option<std::time::Duration>,
 ) {
     let (read, write) = sock.into_split();
+    drive_connection(
+        id,
+        read,
+        write,
+        bus,
+        store,
+        persist,
+        plugin_host,
+        replay_window,
+    )
+    .await;
+}
 
+/// Same per-connection driver, but generic over the stream halves.
+/// Plain TCP feeds in `OwnedReadHalf` / `OwnedWriteHalf` (zero-cost
+/// split). TLS feeds in halves from `tokio::io::split(TlsStream)`
+/// (Mutex-backed, slower than `OwnedReadHalf` but unavoidable for
+/// the duplex TLS state machine; acceptable since the AEAD encrypt
+/// path already dominates per-byte cost on TLS).
+#[allow(clippy::too_many_arguments)]
+async fn drive_connection<R, W>(
+    id: u64,
+    read: R,
+    write: W,
+    bus: Arc<Bus>,
+    store: Store,
+    persist: PersistMode,
+    plugin_host: Option<Arc<PluginHost>>,
+    replay_window: Option<std::time::Duration>,
+) where
+    R: AsyncRead + Unpin + Send + 'static,
+    W: AsyncWrite + Unpin + Send + 'static,
+{
     let filter = Filter {
         group_mask: ALL_GROUPS,
         ..Filter::default()
@@ -195,14 +319,17 @@ async fn handle_connection(
 /// front of the buffer over to the dispatch path as a `Bytes` with no
 /// memcpy. The proto payload slice is re-derived from the now-detached
 /// frame and decoded in place.
-async fn read_loop(
+async fn read_loop<R>(
     id: u64,
-    mut read: tokio::net::tcp::OwnedReadHalf,
+    mut read: R,
     bus: &Arc<Bus>,
     store: &Store,
     persist: PersistMode,
     plugin_host: Option<&PluginHost>,
-) -> Result<()> {
+) -> Result<()>
+where
+    R: AsyncRead + Unpin + Send,
+{
     let mut buf = BytesMut::with_capacity(READ_BUF_CAPACITY);
     let mut scratch = DispatchScratch::default();
     let mut decoded = 0u64;
@@ -461,11 +588,10 @@ fn build_plugin_event(
 /// Each item on `rx` is a complete on-wire frame produced by
 /// [`Bytes::clone`] from the read path — invariant H3 (Arc bump, no
 /// memcpy) all the way out to the socket.
-async fn write_loop(
-    id: u64,
-    mut write: tokio::net::tcp::OwnedWriteHalf,
-    mut rx: mpsc::Receiver<Bytes>,
-) {
+async fn write_loop<W>(id: u64, mut write: W, mut rx: mpsc::Receiver<Bytes>)
+where
+    W: AsyncWrite + Unpin + Send,
+{
     let mut sent = 0u64;
     while let Some(b) = rx.recv().await {
         if let Err(e) = write.write_all(&b).await {

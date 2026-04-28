@@ -46,6 +46,28 @@ struct Args {
     #[arg(long, env = "TAK_LISTEN_COT", default_value = "0.0.0.0:8088")]
     listen_cot: SocketAddr,
 
+    /// mTLS CoT firehose listen address. The production path for
+    /// real ATAK clients. Empty string disables. Requires
+    /// `--tls-cert`, `--tls-key`, `--tls-truststore-ca` to be
+    /// supplied together.
+    #[arg(long, env = "TAK_LISTEN_COT_TLS", default_value = "")]
+    listen_cot_tls: String,
+
+    /// PEM cert chain the server presents on the mTLS firehose.
+    /// File path; loaded once at startup.
+    #[arg(long, env = "TAK_TLS_CERT")]
+    tls_cert: Option<std::path::PathBuf>,
+
+    /// PEM private key matching `--tls-cert`.
+    #[arg(long, env = "TAK_TLS_KEY")]
+    tls_key: Option<std::path::PathBuf>,
+
+    /// PEM file with the CA(s) used to verify ATAK client certs.
+    /// A single file with multiple PEM blocks is fine. Required
+    /// when `--listen-cot-tls` is set.
+    #[arg(long, env = "TAK_TLS_TRUSTSTORE_CA")]
+    tls_truststore_ca: Option<std::path::PathBuf>,
+
     /// Mission API listen address.
     #[arg(long, env = "TAK_LISTEN_API", default_value = "0.0.0.0:8080")]
     listen_api: SocketAddr,
@@ -308,6 +330,22 @@ async fn main() -> Result<()> {
         ));
     }
 
+    // Optional mTLS firehose listener. Production deployments
+    // should run THIS, not the plain TCP firehose, since ATAK
+    // requires a client cert chain matching the truststore CA.
+    // Plain firehose stays bound for bench compatibility.
+    let tls_handle = if !args.listen_cot_tls.is_empty() {
+        match boot_tls_firehose(&args, bus.clone(), store.clone(), persist, replay_window).await {
+            Ok(handle) => Some(handle),
+            Err(e) => {
+                warn!(error = ?e, "firehose-tls: bootstrap failed; continuing without mTLS");
+                None
+            }
+        }
+    } else {
+        None
+    };
+
     // Optional QUIC firehose listener. Bound to its own UDP port
     // alongside the TCP firehose; both can be live at once.
     let quic_handle = if args.quic {
@@ -338,20 +376,95 @@ async fn main() -> Result<()> {
 
     // Either listener exiting takes the process down — they're co-equal
     // and the operator should restart on either crash.
-    if let Some(quic) = quic_handle {
-        tokio::select! {
+    match (quic_handle, tls_handle) {
+        (Some(quic), Some(tls)) => tokio::select! {
             res = firehose_handle => log_join("firehose", res),
             res = api_handle => log_join("api", res),
             res = quic => log_join("firehose-quic", res),
-        }
-    } else {
-        tokio::select! {
+            res = tls => log_join("firehose-tls", res),
+        },
+        (Some(quic), None) => tokio::select! {
             res = firehose_handle => log_join("firehose", res),
             res = api_handle => log_join("api", res),
-        }
+            res = quic => log_join("firehose-quic", res),
+        },
+        (None, Some(tls)) => tokio::select! {
+            res = firehose_handle => log_join("firehose", res),
+            res = api_handle => log_join("api", res),
+            res = tls => log_join("firehose-tls", res),
+        },
+        (None, None) => tokio::select! {
+            res = firehose_handle => log_join("firehose", res),
+            res = api_handle => log_join("api", res),
+        },
     }
 
     Ok(())
+}
+
+/// Build the rustls server config from the supplied PEM files,
+/// bind the mTLS firehose listener, and spawn its accept loop.
+///
+/// Returns the spawned task's handle so `main` can `select!` on it.
+async fn boot_tls_firehose(
+    args: &Args,
+    bus: std::sync::Arc<Bus>,
+    store: Store,
+    persist: PersistMode,
+    replay_window: Option<std::time::Duration>,
+) -> Result<tokio::task::JoinHandle<()>> {
+    let cert = args
+        .tls_cert
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("--tls-cert required when --listen-cot-tls is set"))?;
+    let key = args
+        .tls_key
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("--tls-key required when --listen-cot-tls is set"))?;
+    let ca = args.tls_truststore_ca.as_ref().ok_or_else(|| {
+        anyhow::anyhow!("--tls-truststore-ca required when --listen-cot-tls is set")
+    })?;
+
+    let cert_pem =
+        std::fs::read(cert).with_context(|| format!("read --tls-cert {}", cert.display()))?;
+    let key_pem =
+        std::fs::read(key).with_context(|| format!("read --tls-key {}", key.display()))?;
+    let ca_pem =
+        std::fs::read(ca).with_context(|| format!("read --tls-truststore-ca {}", ca.display()))?;
+
+    let server_config = tak_net::tls::ServerConfigBuilder::new()
+        .with_keystore_pem(&cert_pem, &key_pem)
+        .context("--tls-cert / --tls-key parse")?
+        .with_truststore_pem(&ca_pem)
+        .context("--tls-truststore-ca parse")?
+        .build()
+        .context("rustls server config")?;
+    let acceptor = tak_net::listener::acceptor(server_config);
+
+    let addr: SocketAddr = args
+        .listen_cot_tls
+        .parse()
+        .with_context(|| format!("parse --listen-cot-tls {:?}", args.listen_cot_tls))?;
+    let listener = TcpListener::bind(addr)
+        .await
+        .with_context(|| format!("bind --listen-cot-tls {addr}"))?;
+
+    info!(
+        addr = %addr,
+        cert = %cert.display(),
+        ca = %ca.display(),
+        "firehose-tls: bound"
+    );
+
+    #[allow(clippy::disallowed_methods)]
+    let handle = tokio::spawn(async move {
+        if let Err(e) =
+            firehose::run_tls(listener, acceptor, bus, store, persist, None, replay_window).await
+        {
+            warn!(error = ?e, "firehose-tls loop exited");
+        }
+    });
+    Ok(handle)
 }
 
 fn log_join(name: &str, res: Result<(), tokio::task::JoinError>) {
