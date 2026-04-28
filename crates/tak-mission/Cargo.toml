@@ -8,10 +8,16 @@ license      .workspace = true
 authors      .workspace = true
 repository   .workspace = true
 
-# Stub: only Error enum today. Deps come back when endpoints land (M4).
 [dependencies]
-thiserror  .workspace = true
-tak-store  .workspace = true
+axum        .workspace = true
+tower-http  .workspace = true
+thiserror   .workspace = true
+tak-store   .workspace = true
+
+[dev-dependencies]
+tokio  = { workspace = true, features = ["rt-multi-thread", "macros"] }
+tower  .workspace = true
+http-body-util = "0.1"
 
 [lints]
 workspace = true
