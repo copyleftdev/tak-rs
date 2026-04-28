@@ -40,6 +40,18 @@ pub(crate) enum Outcome {
 const OP_LOG_TAIL: usize = 64;
 
 pub(crate) fn run(cfg: &Config) -> Outcome {
+    run_with_skip(cfg, &std::collections::HashSet::new())
+}
+
+/// Like [`run`] but skips ops whose seed-derived index is in
+/// `skip`. Same seed + same skip set = bit-identical run.
+///
+/// Slot-referencing ops (DropHandle, DrainReceiver, DropReceiver)
+/// degrade gracefully when they reference a skipped Subscribe:
+/// the model returns None / no-op via its existing `subs.get_mut`
+/// guard, the bus is never called with an invalid id, the run
+/// continues. That's the property minimization relies on.
+pub(crate) fn run_with_skip(cfg: &Config, skip: &std::collections::HashSet<u64>) -> Outcome {
     let mut rng = ChaCha8Rng::seed_from_u64(cfg.seed);
     let bus = Bus::new();
     let mut model = Model::default();
@@ -50,7 +62,14 @@ pub(crate) fn run(cfg: &Config) -> Outcome {
     let started = Instant::now();
 
     for i in 0..cfg.ops {
+        // The op generator is RNG-driven, so we MUST advance it
+        // for every op slot whether or not we apply the op.
+        // Otherwise a skip mid-stream causes every subsequent
+        // op to differ. Generate first, then maybe skip.
         let op = pick_op(&mut rng, &model, cfg);
+        if skip.contains(&i) {
+            continue;
+        }
         if cfg.verbose {
             println!("[{i:>6}] {op:?}");
         }

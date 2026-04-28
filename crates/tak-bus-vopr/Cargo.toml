@@ -29,6 +29,8 @@ rand_chacha = "0.3"
 # tool. Default-mode runs are still fast enough (~130k ops/s on
 # the 100k-op default).
 dhat       .workspace = true
+serde      = { workspace = true, features = ["derive"] }
+serde_json .workspace = true
 
 [lints]
 workspace = true
