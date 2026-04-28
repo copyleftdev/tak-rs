@@ -47,6 +47,7 @@ pub mod ports {
     pub const FED_V2: u16 = 9001;
 }
 
+pub mod conn;
 pub mod tls;
 
 /// Errors returned by `tak-net`.
