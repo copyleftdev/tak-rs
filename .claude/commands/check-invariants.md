@@ -12,7 +12,7 @@ The gauntlet (run in this order, fail-fast OFF — capture all results):
 3. **API (A2):** `cargo machete`. Captures unused deps that bloat the API surface.
 4. **Hot path (H1):** `cargo test -p tak-bus --test no_alloc -- --ignored`. Asserts steady-state dispatch performs zero heap allocs (uses dhat).
 5. **Concurrency (N1):** `RUSTFLAGS="--cfg loom" cargo test -p tak-bus --test loom_dispatch --release`. Model-checks bus dispatch under all schedules.
-6. **Correctness (C1):** `cargo test -p tak-cot --test roundtrip`. Proptest for lossless XML round-trip.
+6. **Correctness (C1):** `cargo test -p tak-cot --test proptest_roundtrip -- --ignored`. The extended 10_000-case proptest covering decode→view_to_takmessage→takmessage_to_xml→decode→view_to_takmessage stability. The quick 256-case variant runs in pre-push; this is the strict gauntlet variant.
 7. **Correctness (C2):** `cargo test -p tak-proto --test snapshots`. Insta snapshots for proto wire stability.
 8. **Correctness (C3):** `cargo test -p tak-auth --test bitvector`. Group bitvector AND vs reference impl.
 9. **Concurrency (N3):** `grep -rn "tokio::spawn" crates/ --include='*.rs'` (must return zero matches in lib code; only `tak_server::tasks::spawn` allowed).

@@ -151,21 +151,30 @@ fn build_detail(view: &DetailView<'_>) -> Result<Detail> {
 }
 
 // ---------------------------------------------------------------------------
-// Per-element converters. Each returns `Ok(None)` when a required attribute
-// is missing — the upstream "fall back to opaque XML" rule.
+// Per-element converters. Each returns `Ok(None)` when:
+// - a required attribute is missing, OR
+// - the element carries any attribute we don't recognize for the typed
+//   sub-message (per upstream `detail.proto`: "WHOLE ELEMENTS MUST BE
+//   CONVERTED TO MESSAGES" — splitting attrs across typed + xmlDetail
+//   is forbidden).
+// In either case the whole element falls through verbatim into xmlDetail.
 // ---------------------------------------------------------------------------
 
 fn try_contact(child: &DetailChild<'_>) -> Result<Option<Contact>> {
     let mut endpoint: Option<String> = None;
     let mut callsign: Option<String> = None;
+    let mut has_extra = false;
     walk_child_attrs(child, |k, v| {
         match k {
             "endpoint" => endpoint = Some(v.to_owned()),
             "callsign" => callsign = Some(v.to_owned()),
-            _ => {}
+            _ => has_extra = true,
         }
         Ok(())
     })?;
+    if has_extra {
+        return Ok(None);
+    }
     Ok(match (endpoint, callsign) {
         (Some(e), Some(c)) => Some(Contact {
             endpoint: e,
@@ -178,14 +187,18 @@ fn try_contact(child: &DetailChild<'_>) -> Result<Option<Contact>> {
 fn try_group(child: &DetailChild<'_>) -> Result<Option<Group>> {
     let mut name: Option<String> = None;
     let mut role: Option<String> = None;
+    let mut has_extra = false;
     walk_child_attrs(child, |k, v| {
         match k {
             "name" => name = Some(v.to_owned()),
             "role" => role = Some(v.to_owned()),
-            _ => {}
+            _ => has_extra = true,
         }
         Ok(())
     })?;
+    if has_extra {
+        return Ok(None);
+    }
     Ok(match (name, role) {
         (Some(n), Some(r)) => Some(Group { name: n, role: r }),
         _ => None,
@@ -195,14 +208,18 @@ fn try_group(child: &DetailChild<'_>) -> Result<Option<Group>> {
 fn try_precision_location(child: &DetailChild<'_>) -> Result<Option<PrecisionLocation>> {
     let mut geopointsrc: Option<String> = None;
     let mut altsrc: Option<String> = None;
+    let mut has_extra = false;
     walk_child_attrs(child, |k, v| {
         match k {
             "geopointsrc" => geopointsrc = Some(v.to_owned()),
             "altsrc" => altsrc = Some(v.to_owned()),
-            _ => {}
+            _ => has_extra = true,
         }
         Ok(())
     })?;
+    if has_extra {
+        return Ok(None);
+    }
     Ok(match (geopointsrc, altsrc) {
         (Some(g), Some(a)) => Some(PrecisionLocation {
             geopointsrc: g,
@@ -214,12 +231,18 @@ fn try_precision_location(child: &DetailChild<'_>) -> Result<Option<PrecisionLoc
 
 fn try_status(child: &DetailChild<'_>) -> Result<Option<Status>> {
     let mut battery: Option<u32> = None;
+    let mut has_extra = false;
     walk_child_attrs(child, |k, v| {
         if k == "battery" {
             battery = v.parse::<u32>().ok();
+        } else {
+            has_extra = true;
         }
         Ok(())
     })?;
+    if has_extra {
+        return Ok(None);
+    }
     Ok(battery.map(|b| Status { battery: b }))
 }
 
@@ -228,16 +251,20 @@ fn try_takv(child: &DetailChild<'_>) -> Result<Option<Takv>> {
     let mut platform: Option<String> = None;
     let mut os: Option<String> = None;
     let mut version: Option<String> = None;
+    let mut has_extra = false;
     walk_child_attrs(child, |k, v| {
         match k {
             "device" => device = Some(v.to_owned()),
             "platform" => platform = Some(v.to_owned()),
             "os" => os = Some(v.to_owned()),
             "version" => version = Some(v.to_owned()),
-            _ => {}
+            _ => has_extra = true,
         }
         Ok(())
     })?;
+    if has_extra {
+        return Ok(None);
+    }
     Ok(match (device, platform, os, version) {
         (Some(d), Some(p), Some(o), Some(v)) => Some(Takv {
             device: d,
@@ -252,14 +279,18 @@ fn try_takv(child: &DetailChild<'_>) -> Result<Option<Takv>> {
 fn try_track(child: &DetailChild<'_>) -> Result<Option<Track>> {
     let mut speed: Option<f64> = None;
     let mut course: Option<f64> = None;
+    let mut has_extra = false;
     walk_child_attrs(child, |k, v| {
         match k {
             "speed" => speed = v.parse::<f64>().ok(),
             "course" => course = v.parse::<f64>().ok(),
-            _ => {}
+            _ => has_extra = true,
         }
         Ok(())
     })?;
+    if has_extra {
+        return Ok(None);
+    }
     Ok(match (speed, course) {
         (Some(s), Some(c)) => Some(Track {
             speed: s,
