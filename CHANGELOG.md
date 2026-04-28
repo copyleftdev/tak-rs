@@ -24,6 +24,25 @@ Internal milestones (M0–M5) and the issues that close them are referenced inli
 - **`tak-server --no-persist` flag** (env: `TAK_NO_PERSIST=true`) skips the
   persistence side-channel entirely. Used to measure pure dispatch
   throughput against an upstream Java server with persistence disabled.
+- **Wasm plugin pipeline is live end-to-end.** `tak-server
+  --plugin-dir <path>` loads every `*.wasm` component in the
+  directory, gives each its own `wasmtime::Store` + worker thread,
+  and feeds dispatched CoT events into the plugin's `on_inbound`
+  via a bounded mpsc (`try_send` drops on full — H1 hot path
+  unaffected). `examples/plugins/geofence-redact` is the smoke
+  test: 25 000 events through the loadgen → 25 plugin heartbeats
+  emitted (one per 1 000 events seen). Plugin output joins the
+  same `tracing` JSON schema as the rest of tak-rs under
+  `plugin = <name>`.
+  Build the sample: `cd examples/plugins/geofence-redact && cargo
+  build --release --target wasm32-wasip2`.
+- **`wasmtime-wasi` deny-everything WasiCtx** in the host. Plugins
+  built for `wasm32-wasip2` import the WASI 0.2 surface from
+  their std library even when they don't use it; we satisfy
+  those imports with no preopens, no env, no inherited stdio.
+  The decision-0004 capability model still holds — the plugin
+  has no host I/O it can act on, just enough hooks for std
+  panic/format infra.
 - **Wasm plugin host runtime scaffolding** (per decision 0004).
   Two new crates land — neither is wired into `tak-server` yet,
   but both compile clean against the published WIT contract:

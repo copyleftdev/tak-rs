@@ -21,8 +21,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use tokio::sync::mpsc;
 use tracing::{debug, info, warn};
-use wasmtime::component::{Component, HasSelf, Linker};
+use wasmtime::component::{Component, HasSelf, Linker, ResourceTable};
 use wasmtime::{Config, Engine, Store};
+use wasmtime_wasi::{WasiCtx, WasiCtxBuilder, WasiCtxView, WasiView};
 
 use crate::Error;
 use crate::bindings::{TakPlugin, clock, inbound::CotEvent, log};
@@ -114,7 +115,13 @@ impl PluginHost {
         // version reuses cached compilation).
         let mut wasm_config = Config::new();
         wasm_config.wasm_component_model(true);
-        wasm_config.epoch_interruption(true);
+        // Epoch interruption is the mechanism behind the per-plugin
+        // `max-cpu-ms-per-msg` budget from decision 0004. We don't
+        // wire the budget enforcer yet — turning the flag on
+        // without a ticker traps every plugin call immediately.
+        // The per-plugin TOML + epoch ticker land together in a
+        // follow-up commit.
+        wasm_config.epoch_interruption(false);
         let engine = Engine::new(&wasm_config)?;
 
         let mut plugins = Vec::new();
@@ -161,6 +168,19 @@ impl PluginHost {
         })?;
 
         let mut linker = Linker::<HostState>::new(engine);
+
+        // Plugins built for `wasm32-wasip2` import the WASI 0.2
+        // surface from their std library even when they don't use
+        // it. We satisfy those imports with a deny-everything
+        // WasiCtx (no preopens, no env, no inherited stdio); the
+        // capabilities described in decision 0004 are still
+        // enforced because the WasiCtx exposes nothing the plugin
+        // can act on.
+        wasmtime_wasi::p2::add_to_linker_sync(&mut linker).map_err(|e| Error::Load {
+            path: path.to_path_buf(),
+            source: e,
+        })?;
+
         log::add_to_linker::<HostState, HasSelf<HostState>>(&mut linker, |st| st).map_err(|e| {
             Error::Load {
                 path: path.to_path_buf(),
@@ -238,11 +258,18 @@ fn run_worker(
     linker: Linker<HostState>,
     mut rx: mpsc::Receiver<PluginEvent>,
 ) {
+    // Deny-everything WasiCtx: no preopens, no env, no stdio
+    // inheritance. Plugins that try to print() or read clock_now()
+    // see deterministic empty results / errors.
+    let wasi = WasiCtxBuilder::new().build();
+
     let mut store = Store::new(
         &engine,
         HostState {
             plugin_name: name.clone(),
             started_at: std::time::Instant::now(),
+            wasi,
+            wasi_table: ResourceTable::new(),
         },
     );
 
@@ -294,11 +321,23 @@ fn run_worker(
 }
 
 /// Per-store host state. Imports use this to stash anything
-/// scoped to a single plugin instance.
-#[derive(Debug)]
+/// scoped to a single plugin instance, including the deny-
+/// everything WASI context required to satisfy
+/// `wasm32-wasip2` plugins' transitive WASI imports.
 struct HostState {
     plugin_name: String,
     started_at: std::time::Instant,
+    wasi: WasiCtx,
+    wasi_table: ResourceTable,
+}
+
+impl WasiView for HostState {
+    fn ctx(&mut self) -> WasiCtxView<'_> {
+        WasiCtxView {
+            ctx: &mut self.wasi,
+            table: &mut self.wasi_table,
+        }
+    }
 }
 
 impl log::Host for HostState {

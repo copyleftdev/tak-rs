@@ -26,6 +26,7 @@ use bytes::{Bytes, BytesMut};
 use prost::Message;
 use tak_bus::{Bus, DispatchScratch, Filter, GroupBitvector};
 use tak_cot::framing;
+use tak_plugin_host::{PluginEvent, PluginHost};
 use tak_proto::v1::TakMessage;
 use tak_store::Store;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -81,9 +82,15 @@ pub async fn run(
     bus: Arc<Bus>,
     store: Store,
     persist: PersistMode,
+    plugin_host: Option<Arc<PluginHost>>,
 ) -> Result<()> {
     let connection_id = Arc::new(AtomicU64::new(0));
-    info!(addr = ?listener.local_addr().ok(), ?persist, "firehose: accept loop started");
+    info!(
+        addr = ?listener.local_addr().ok(),
+        ?persist,
+        plugins = plugin_host.as_deref().map(PluginHost::len).unwrap_or(0),
+        "firehose: accept loop started"
+    );
 
     loop {
         let (sock, peer) = match listener.accept().await {
@@ -98,13 +105,14 @@ pub async fn run(
         let id = connection_id.fetch_add(1, Ordering::Relaxed);
         let bus = bus.clone();
         let store = store.clone();
+        let plugin_host = plugin_host.clone();
         // Per-connection task. Discipline: lib-side enforces the N3
         // named-spawn rule via clippy::disallowed_methods, so we
         // suppress at the call site.
         #[allow(clippy::disallowed_methods)]
         tokio::spawn(async move {
             debug!(conn = id, peer = %peer, "firehose: accepted");
-            handle_connection(id, sock, bus, store, persist).await;
+            handle_connection(id, sock, bus, store, persist, plugin_host).await;
             debug!(conn = id, "firehose: closed");
         });
     }
@@ -116,6 +124,7 @@ async fn handle_connection(
     bus: Arc<Bus>,
     store: Store,
     persist: PersistMode,
+    plugin_host: Option<Arc<PluginHost>>,
 ) {
     let (read, write) = sock.into_split();
 
@@ -128,7 +137,7 @@ async fn handle_connection(
     #[allow(clippy::disallowed_methods)]
     let writer = tokio::spawn(write_loop(id, write, rx));
 
-    if let Err(e) = read_loop(id, read, &bus, &store, persist).await {
+    if let Err(e) = read_loop(id, read, &bus, &store, persist, plugin_host.as_deref()).await {
         debug!(conn = id, error = ?e, "firehose: reader exit");
     }
 
@@ -150,6 +159,7 @@ async fn read_loop(
     bus: &Arc<Bus>,
     store: &Store,
     persist: PersistMode,
+    plugin_host: Option<&PluginHost>,
 ) -> Result<()> {
     let mut buf = BytesMut::with_capacity(READ_BUF_CAPACITY);
     let mut scratch = DispatchScratch::default();
@@ -188,6 +198,15 @@ async fn read_loop(
 
             match TakMessage::decode(proto_payload) {
                 Ok(msg) => {
+                    // Plugin host fan-out runs BEFORE moving `framed`
+                    // into the pipeline. Bytes::clone is an Arc bump
+                    // (H3); the plugin worker pool drops on full
+                    // queue without back-pressuring dispatch.
+                    if let Some(host) = plugin_host
+                        && let Some(event) = build_plugin_event(&msg, framed.clone(), ALL_GROUPS)
+                    {
+                        let _ = host.publish(event);
+                    }
                     match persist {
                         PersistMode::On => {
                             let _ = pipeline::dispatch_and_persist(
@@ -221,6 +240,29 @@ async fn read_loop(
             }
         }
     }
+}
+
+/// Build a [`PluginEvent`] from a decoded `TakMessage`. Returns
+/// `None` if the message has no `cot_event` payload (which means
+/// it's a TAK control frame with no app-level CoT — plugins don't
+/// see those in v0).
+fn build_plugin_event(
+    msg: &TakMessage,
+    payload: Bytes,
+    sender_groups: GroupBitvector,
+) -> Option<PluginEvent> {
+    let cot = msg.cot_event.as_ref()?;
+    Some(PluginEvent {
+        payload,
+        cot_type: cot.r#type.clone(),
+        uid: cot.uid.clone(),
+        callsign: None, // detail-block contact extraction lands later
+        lat: cot.lat,
+        lon: cot.lon,
+        hae: cot.hae,
+        send_time_ms: cot.send_time,
+        sender_groups_low: sender_groups.0[0],
+    })
 }
 
 /// Drain the per-connection mpsc and write each frame to the socket.

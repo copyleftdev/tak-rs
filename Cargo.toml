@@ -1,6 +1,7 @@
 [workspace]
 resolver = "3"
 members  = ["crates/*"]
+exclude  = ["examples/plugins/*"]   # built for wasm32, not the host target
 
 [workspace.package]
 version      = "0.0.1"
@@ -98,9 +99,15 @@ serde_json = "1"
 # --- wasm component model (decision 0004 plugins) ---
 # wasmtime 44 is the latest stable line as of 2026-04. Earlier 34.x has
 # unpatched security advisories — never pin to anything older.
-wasmtime    = { version = "44", default-features = false, features = ["std", "runtime", "component-model", "cache", "cranelift", "pooling-allocator"] }
-wit-bindgen = "0.57"
-notify      = "8"
+wasmtime      = { version = "44", default-features = false, features = ["std", "runtime", "component-model", "cache", "cranelift", "pooling-allocator"] }
+# wasm32-wasip2 plugins import the WASI 0.2 surface from their std
+# library even when they don't use it directly. The host has to
+# satisfy those imports to instantiate the component; we install a
+# deny-everything WasiCtx (no preopens, no env, stderr-redirected
+# to tracing) so the threat model from decision 0004 still holds.
+wasmtime-wasi = { version = "44", default-features = false }
+wit-bindgen   = "0.57"
+notify        = "8"
 
 # --- internal workspace crates ---
 tak-cot         = { path = "crates/tak-cot",         version = "0.0.1" }

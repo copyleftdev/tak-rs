@@ -72,7 +72,14 @@ async fn firehose_dispatches_and_persists_a_real_frame() {
     let bus_for_loop = bus.clone();
     let store_for_loop = store.clone();
     let _accept = tokio::spawn(async move {
-        let _ = firehose::run(listener, bus_for_loop, store_for_loop, PersistMode::On).await;
+        let _ = firehose::run(
+            listener,
+            bus_for_loop,
+            store_for_loop,
+            PersistMode::On,
+            None,
+        )
+        .await;
     });
 
     // Bake one PLI frame the same way taktool loadgen does.

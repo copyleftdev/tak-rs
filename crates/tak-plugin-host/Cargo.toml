@@ -9,12 +9,13 @@ authors      .workspace = true
 repository   .workspace = true
 
 [dependencies]
-wasmtime  .workspace = true
-tokio     .workspace = true
-tracing   .workspace = true
-thiserror .workspace = true
-anyhow    .workspace = true
-bytes     .workspace = true
+wasmtime      .workspace = true
+wasmtime-wasi .workspace = true
+tokio         .workspace = true
+tracing       .workspace = true
+thiserror     .workspace = true
+anyhow        .workspace = true
+bytes         .workspace = true
 
 # Pulled only so cargo registers the path dependency that binds our
 # `bindgen!(path = "../tak-plugin-api/wit")` macro to the WIT source.

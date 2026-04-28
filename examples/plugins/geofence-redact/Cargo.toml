@@ -1,0 +1,37 @@
+# Sample tak-rs plugin: drops every CoT event whose lat is below
+# a configured threshold. Smoke test for the wasm-component plugin
+# pipeline (decision 0004).
+#
+# Build:
+#   cd examples/plugins/geofence-redact
+#   cargo build --release --target wasm32-wasip2
+#   cp target/wasm32-wasip2/release/geofence_redact.wasm <plugin-dir>/
+#
+# Then run tak-server with --plugin-dir <plugin-dir>. See README.md
+# in this directory for the full smoke-test recipe.
+[package]
+name        = "geofence-redact"
+description = "Sample plugin: drop CoT events below a configured latitude."
+version     = "0.0.1"
+edition     = "2024"
+license     = "MIT OR Apache-2.0"
+
+# Excluded from the workspace because cargo would try to build this
+# crate for the host target (x86_64-unknown-linux-gnu) and the
+# Guest impl is meaningless there. Plugin authors invoke `cargo
+# build --target wasm32-wasip2` from inside this directory.
+
+# Empty [workspace] table makes this crate its own
+# (single-crate) workspace, even though it sits inside the parent
+# tak-rs repo. Without it cargo gets confused by the parent
+# `[workspace]` excluding us.
+[workspace]
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+# Path-dep so the plugin always links against our local
+# tak-plugin-api source (which holds the WIT). Released plugins
+# would `tak-plugin-api = "0.x"` against the published version.
+tak-plugin-api = { path = "../../../crates/tak-plugin-api" }

@@ -19,3 +19,5 @@ crates/*/fuzz/artifacts/
 .idea/
 .claude/scheduled_tasks.lock
 .scratch/
+examples/plugins/*/target/
+examples/plugins/*/Cargo.lock

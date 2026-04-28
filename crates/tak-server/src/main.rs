@@ -86,6 +86,14 @@ struct Args {
     /// PEM private key for the QUIC TLS handshake.
     #[arg(long, env = "TAK_QUIC_KEY")]
     quic_key: Option<std::path::PathBuf>,
+
+    /// Directory of `*.wasm` plugin components to load at startup
+    /// (per `docs/decisions/0004-wasm-plugins.md`). Plugins run on
+    /// a separate worker pool, off the H1 hot path; their queues
+    /// drop on full instead of stalling dispatch. Unset = no
+    /// plugins.
+    #[arg(long, env = "TAK_PLUGIN_DIR")]
+    plugin_dir: Option<std::path::PathBuf>,
 }
 
 #[tokio::main]
@@ -119,6 +127,29 @@ async fn main() -> Result<()> {
 
     let bus = Bus::new();
 
+    // Optional wasm plugin host. Loaded once at startup; hot-reload
+    // is future work. Failure to load any single plugin is logged
+    // but doesn't abort startup.
+    let plugin_host: Option<std::sync::Arc<tak_plugin_host::PluginHost>> =
+        if let Some(dir) = args.plugin_dir.clone() {
+            let cfg = tak_plugin_host::PluginHostConfig {
+                plugin_dir: dir,
+                ..Default::default()
+            };
+            match tak_plugin_host::PluginHost::new(cfg).await {
+                Ok(host) => {
+                    info!(loaded = host.len(), "plugin host ready");
+                    Some(std::sync::Arc::new(host))
+                }
+                Err(e) => {
+                    warn!(error = ?e, "plugin host failed to start; continuing without plugins");
+                    None
+                }
+            }
+        } else {
+            None
+        };
+
     let api_listener = TcpListener::bind(args.listen_api)
         .await
         .with_context(|| format!("bind {}", args.listen_api))?;
@@ -145,9 +176,12 @@ async fn main() -> Result<()> {
         let cot_addr = args.listen_cot;
         let use_compio = args.compio;
         let compio_threads = args.compio_threads;
+        let plugin_host_for_firehose = plugin_host.clone();
         if use_compio {
             // compio's blocking runtime needs a blocking thread of
             // its own — spawn_blocking parks on tokio's pool.
+            // Plugin host wiring on the compio path is future work;
+            // for now plugins only run when --compio is off.
             tokio::task::spawn(async move {
                 let res = tokio::task::spawn_blocking(move || {
                     firehose_compio_run(cot_addr, bus, store, compio_threads, persist)
@@ -168,7 +202,9 @@ async fn main() -> Result<()> {
                         return;
                     }
                 };
-                if let Err(e) = firehose::run(cot_listener, bus, store, persist).await {
+                if let Err(e) =
+                    firehose::run(cot_listener, bus, store, persist, plugin_host_for_firehose).await
+                {
                     warn!(error = ?e, "firehose loop exited");
                 }
             })
