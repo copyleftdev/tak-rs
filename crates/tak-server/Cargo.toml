@@ -8,18 +8,33 @@ license      .workspace = true
 authors      .workspace = true
 repository   .workspace = true
 
-# Scaffold: only logs version + warn. Sub-crate deps land as their listeners
-# / endpoints come online; see issues #16, #19, #34, etc.
+# Library + binary: the pipeline glue is library code so integration
+# tests can drive it against a real bus + Postgres testcontainer.
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "tak-server"
+path = "src/main.rs"
+
 [dependencies]
 tokio              .workspace = true
 tracing            .workspace = true
 tracing-subscriber .workspace = true
 anyhow             .workspace = true
 mimalloc           .workspace = true
+bytes              .workspace = true
+thiserror          .workspace = true
 
-[[bin]]
-name = "tak-server"
-path = "src/main.rs"
+tak-bus    .workspace = true
+tak-store  .workspace = true
+tak-proto  .workspace = true
+
+[dev-dependencies]
+testcontainers .workspace = true
+sqlx           .workspace = true
 
 # Binary opts out of unwrap/print bans inline via #![allow(...)] in main.rs.
+# Library inherits workspace lints.
 [lints]
+workspace = true

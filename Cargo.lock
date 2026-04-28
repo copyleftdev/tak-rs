@@ -3242,7 +3242,14 @@ name = "tak-server"
 version = "0.0.1"
 dependencies = [
  "anyhow",
+ "bytes",
  "mimalloc",
+ "sqlx",
+ "tak-bus",
+ "tak-proto",
+ "tak-store",
+ "testcontainers",
+ "thiserror 2.0.18",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -3252,6 +3259,7 @@ dependencies = [
 name = "tak-store"
 version = "0.0.1"
 dependencies = [
+ "metrics",
  "sqlx",
  "testcontainers",
  "thiserror 2.0.18",

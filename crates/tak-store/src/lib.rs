@@ -216,9 +216,10 @@ impl Store {
     /// Try to enqueue one event for batched insertion.
     ///
     /// Non-blocking. Returns `Err(PersistenceDropped)` if the channel is
-    /// full (the row is silently dropped after incrementing
-    /// [`Store::dropped_count`]). Caller MUST NOT block on the result;
-    /// this is the H1 boundary.
+    /// full (the row is dropped after incrementing
+    /// [`Store::dropped_count`] and the `tak.persistence.dropped`
+    /// metrics counter). Caller MUST NOT block on the result; this is
+    /// the H1 boundary.
     pub fn try_insert_event(
         &self,
         event: CotInsert,
@@ -227,6 +228,7 @@ impl Store {
             Ok(()) => Ok(()),
             Err(_) => {
                 self.dropped.fetch_add(1, Ordering::Relaxed);
+                metrics::counter!("tak.persistence.dropped").increment(1);
                 Err(PersistenceDropped)
             }
         }
@@ -397,4 +399,5 @@ async fn flush(pool: &PgPool, buf: &mut Vec<CotInsert>, inserted: &Arc<AtomicU64
     }
 
     inserted.fetch_add(count as u64, Ordering::Relaxed);
+    metrics::counter!("tak.persistence.inserted").increment(count as u64);
 }

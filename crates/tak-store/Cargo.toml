@@ -13,6 +13,7 @@ sqlx       .workspace = true
 thiserror  .workspace = true
 tokio      .workspace = true
 tracing    .workspace = true
+metrics    .workspace = true
 
 [dev-dependencies]
 tokio          = { workspace = true, features = ["rt-multi-thread", "macros", "test-util", "time"] }
