@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<event version="2.0" uid="shape-5678-hazard" type="u-d-f" time="2026-04-27T05:00:00.000Z" start="2026-04-27T05:00:00.000Z" stale="2026-04-28T05:00:00.000Z" how="h-e">
+  <point lat="34.225700" lon="-118.573900" hae="0.000000" ce="9999999.000000" le="9999999.000000"/>
+  <detail>
+    <link point="34.222000,-118.572000"/>
+    <link point="34.224000,-118.571500"/>
+    <link point="34.226000,-118.573000"/>
+    <link point="34.227500,-118.575500"/>
+    <link point="34.225000,-118.577000"/>
+    <link point="34.222500,-118.575500"/>
+    <link point="34.221000,-118.573500"/>
+    <strokeColor value="-1"/>
+    <strokeWeight value="3.0"/>
+    <fillColor value="-2147418368"/>
+    <labels_on value="true"/>
+    <contact callsign="HAZARD AREA - DEBRIS"/>
+    <remarks>Loose debris field, avoid unless mandated.</remarks>
+    <archive/>
+    <precisionlocation altsrc="???" geopointsrc="USER"/>
+  </detail>
+</event>

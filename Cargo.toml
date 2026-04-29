@@ -1,7 +1,10 @@
 [workspace]
 resolver = "3"
 members  = ["crates/*"]
-exclude  = ["examples/plugins/*"]   # built for wasm32, not the host target
+exclude  = [
+    "examples/plugins/*",      # built for wasm32, not the host target
+    "crates/tak-cot/fuzz",     # cargo-fuzz crate; nightly-only, separate harness
+]
 
 [workspace.package]
 version      = "0.0.1"

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<event version="2.0" uid="route-7890-extract" type="b-m-r" time="2026-04-27T05:00:00.000Z" start="2026-04-27T05:00:00.000Z" stale="2026-04-28T05:00:00.000Z" how="h-e">
+  <point lat="34.225700" lon="-118.573900" hae="0.000000" ce="9999999.000000" le="9999999.000000"/>
+  <detail>
+    <link uid="WP1-START" point="34.220000,-118.570000" type="b-m-p-w" relation="c" callsign="WP1"/>
+    <link uid="WP2-MID1"  point="34.222000,-118.572000" type="b-m-p-w" relation="c" callsign="WP2"/>
+    <link uid="WP3-MID2"  point="34.225000,-118.575000" type="b-m-p-w" relation="c" callsign="WP3"/>
+    <link uid="WP4-MID3"  point="34.228000,-118.577000" type="b-m-p-w" relation="c" callsign="WP4"/>
+    <link uid="WP5-END"   point="34.230000,-118.580000" type="b-m-p-w" relation="c" callsign="WP5"/>
+    <__routeinfo routetype="Primary"/>
+    <strokeColor value="-65536"/>
+    <strokeWeight value="4.0"/>
+    <contact callsign="EXTRACT ROUTE ALPHA"/>
+    <archive/>
+    <link_attr method="Driving" direction="Outgoing" routetype="Primary" order="Ascending Check Points" type="On Road"/>
+    <precisionlocation altsrc="???" geopointsrc="USER"/>
+  </detail>
+</event>

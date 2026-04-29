@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<event version="2.0" uid="GeoChat.ANDROID-aaa.ANDROID-bbb.7e1234abcd" type="b-t-f" time="2026-04-27T05:00:00.000Z" start="2026-04-27T05:00:00.000Z" stale="2026-04-28T05:00:00.000Z" how="h-g-i-g-o">
+  <point lat="34.225700" lon="-118.573900" hae="245.000000" ce="9999999.000000" le="9999999.000000"/>
+  <detail>
+    <__chat parent="RootContactGroup" groupOwner="false" chatroom="VIPER02" id="ANDROID-bbb" senderCallsign="VIPER01">
+      <chatgrp uid0="ANDROID-aaa" uid1="ANDROID-bbb" id="ANDROID-bbb"/>
+    </__chat>
+    <link uid="ANDROID-aaa" type="a-f-G-U-C" relation="p-p"/>
+    <remarks source="BAO.F.ATAK.ANDROID-aaa" to="ANDROID-bbb" time="2026-04-27T05:00:00.000Z">moving to RP, ETA 5 min</remarks>
+    <__serverdestination destinations="ANDROID-bbb"/>
+    <marti>
+      <dest callsign="VIPER02"/>
+    </marti>
+  </detail>
+</event>

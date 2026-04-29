@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<event version="2.0" uid="rect-12345-abcdef" type="u-d-r" time="2026-04-27T05:00:00.000Z" start="2026-04-27T05:00:00.000Z" stale="2026-04-28T05:00:00.000Z" how="h-e">
+  <point lat="34.225700" lon="-118.573900" hae="0.000000" ce="9999999.000000" le="9999999.000000"/>
+  <detail>
+    <link point="34.230000,-118.580000"/>
+    <link point="34.230000,-118.560000"/>
+    <link point="34.220000,-118.560000"/>
+    <link point="34.220000,-118.580000"/>
+    <strokeColor value="-1"/>
+    <strokeWeight value="3.0"/>
+    <fillColor value="1090519039"/>
+    <labels_on value="false"/>
+    <contact callsign="ALPHA SECTOR"/>
+    <__geofence trigger="Entry" tracking="true" minElevation="0" maxElevation="1000" boundingSphere="500"/>
+    <archive/>
+    <precisionlocation altsrc="???" geopointsrc="USER"/>
+  </detail>
+</event>

@@ -1,0 +1,13 @@
+# cargo-fuzz workspace artifacts. Keep the seed corpus checked in
+# (the canonical XML fixtures dropped here at scaffold time); ignore
+# the libFuzzer-generated corpus growth and the build target dir.
+
+target
+artifacts
+
+# Runtime corpus growth: libFuzzer drops new inputs here as raw
+# blob files named by hash. Keep only the human-named seeds.
+corpus/decode_xml/*
+!corpus/decode_xml/*.xml
+
+corpus/decode_stream/*
