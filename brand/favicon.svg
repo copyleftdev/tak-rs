@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Favicon variant: 32×32 viewBox, the reticle alone. The hex frame
+  drops out at sub-32px sizes — at that scale it reads as visual
+  noise, not insignia. The reticle + Rust-orange center is the
+  irreducible mark.
+
+  Stroke widths are tuned for pixel-snap at 16px and 32px renders
+  (no half-pixel artifacts on integer device-pixel-ratio displays).
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" role="img" aria-label="tak-rs">
+  <!-- Reticle ring -->
+  <circle cx="16" cy="16" r="11" stroke="#0B1014" stroke-width="2"/>
+
+  <!-- Reticle arms -->
+  <line x1="16" y1="2"  x2="16" y2="6"  stroke="#0B1014" stroke-width="2"/>
+  <line x1="26" y1="16" x2="30" y2="16" stroke="#0B1014" stroke-width="2"/>
+  <line x1="16" y1="26" x2="16" y2="30" stroke="#0B1014" stroke-width="2"/>
+  <line x1="2"  y1="16" x2="6"  y2="16" stroke="#0B1014" stroke-width="2"/>
+
+  <!-- Center target -->
+  <circle cx="16" cy="16" r="3" fill="#CE422B"/>
+</svg>

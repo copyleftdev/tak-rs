@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Open Graph / Twitter social card for tak.rs.
+  1200 x 630, the canonical 1.91:1 ratio expected by every major
+  social platform. Composition is left-aligned; right side carries
+  the institutional caption + status row.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="tak.rs">
+  <defs>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1A2027" stroke-width="0.5"/>
+    </pattern>
+  </defs>
+
+  <rect width="1200" height="630" fill="#0B1014"/>
+  <rect width="1200" height="630" fill="url(#grid)" opacity="0.55"/>
+
+  <text x="60" y="72"
+        font-family="ui-monospace, SF Mono, Cascadia Mono, Menlo, Consolas, monospace"
+        font-weight="500" font-size="20" letter-spacing="3"
+        fill="#5A6470">CURSOR &#xB7; ON &#xB7; TARGET &#x2014; RUST</text>
+  <line x1="60" y1="92" x2="200" y2="92" stroke="#CE422B" stroke-width="2"/>
+
+  <text x="1140" y="72" text-anchor="end"
+        font-family="ui-monospace, SF Mono, Cascadia Mono, Menlo, Consolas, monospace"
+        font-weight="500" font-size="18" letter-spacing="3"
+        fill="#5A6470">TAK.RS / V0.0.1-PRE</text>
+
+  <g transform="translate(60,170)">
+    <polygon
+      points="224,128 176,211.14 80,211.14 32,128 80,44.86 176,44.86"
+      fill="none" stroke="#F2EFEA" stroke-width="13" stroke-linejoin="miter"/>
+    <circle cx="128" cy="128" r="66" fill="none" stroke="#F2EFEA" stroke-width="10"/>
+    <line x1="128" y1="70"  x2="128" y2="106" stroke="#F2EFEA" stroke-width="10"/>
+    <line x1="150" y1="128" x2="186" y2="128" stroke="#F2EFEA" stroke-width="10"/>
+    <line x1="128" y1="150" x2="128" y2="186" stroke="#F2EFEA" stroke-width="10"/>
+    <line x1="70"  y1="128" x2="106" y2="128" stroke="#F2EFEA" stroke-width="10"/>
+    <circle cx="128" cy="128" r="13" fill="#CE422B"/>
+  </g>
+
+  <g transform="translate(360,232)">
+    <text x="0" y="124"
+          font-family="ui-monospace, SF Mono, Cascadia Mono, Menlo, Consolas, monospace"
+          font-weight="700" font-size="180" letter-spacing="-7"
+          fill="#F2EFEA">tak</text>
+    <circle cx="368" cy="118" r="14" fill="#CE422B"/>
+    <text x="394" y="124"
+          font-family="ui-monospace, SF Mono, Cascadia Mono, Menlo, Consolas, monospace"
+          font-weight="700" font-size="180" letter-spacing="-7"
+          fill="#F2EFEA">rs</text>
+
+    <text x="0" y="200"
+          font-family="ui-monospace, SF Mono, Cascadia Mono, Menlo, Consolas, monospace"
+          font-weight="500" font-size="22" letter-spacing="4.5"
+          fill="#BFB9AE">HIGH-PERFORMANCE RUST KERNEL &#xB7; TAK ECOSYSTEM</text>
+    <line x1="0" y1="220" x2="700" y2="220" stroke="#5A6470" stroke-width="1"/>
+  </g>
+
+  <g transform="translate(60,560)"
+     font-family="ui-monospace, SF Mono, Cascadia Mono, Menlo, Consolas, monospace"
+     font-weight="500" font-size="15" letter-spacing="2.6"
+     fill="#5A6470">
+    <text x="0"   y="0">144 &#xB5;S P99</text>
+    <text x="170" y="0">2.04 B FUZZ EXECS</text>
+    <text x="400" y="0">0 ALLOCS / DISPATCH</text>
+    <text x="650" y="0">148 / 148 TESTS</text>
+    <text x="850" y="0">MIT &#xB7; APACHE-2.0</text>
+  </g>
+</svg>

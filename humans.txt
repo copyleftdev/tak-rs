@@ -1,0 +1,35 @@
+/* tak.rs — humans.txt */
+
+# TEAM
+  Author:   dj
+  Contact:  dj [at] codetestcode [dot] io
+  Origin:   2026
+
+# THANKS
+  The TAK Product Center for the protocol heritage.
+  The Rust ecosystem — tokio, rustls, prost, sqlx, axum, bytes, jiff.
+  The maintainers of FreeTAKServer, OpenTAKServer, taky, and GoATAK
+  for blazing trails in the open-source TAK landscape.
+  The persona authors who shaped this project's discipline:
+    Bryan Cantrill (observability)
+    Carl Lerche  (tokio + service patterns)
+    David Tolnay (codec + serde patterns)
+    Jon Gjengset (state machines + plugin API)
+    Aaron Turon  (public API design)
+    Andy Pavlo   (Postgres schema + spatial index)
+    Casey Muratori (hot-path perf review)
+    Niko Matsakis (borrow checker on the zero-copy path)
+    Roy Fielding (REST surface for Mission API)
+    Anthony Moustacalis / TigerBeetle (deterministic simulation)
+
+# SITE
+  Last update:  2026-04-29
+  Standards:    HTML5, CSS Custom Properties, ES2022, JSON-LD,
+                OpenGraph, Twitter Cards, Schema.org, Web App
+                Manifest, llms.txt
+  Components:   Vanilla &mdash; no framework, no build step
+  Software:     Hand-authored. ~1,650 lines including the
+                particle-mesh canvas.
+
+# REPO
+  https://github.com/copyleftdev/tak-rs

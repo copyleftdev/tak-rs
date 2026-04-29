@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  tak-rs horizontal lockup: mark + "tak.rs" wordmark.
+
+  The wordmark is set in ui-monospace (the system mono stack:
+  SF Mono / Cascadia / JetBrains Mono / Menlo as fallbacks). A
+  monospace stack is on-brand for a Rust kernel: terminal heritage,
+  consistent character cells, no proportional drift.
+
+  The period dot is REPLACED by a custom Rust-orange disc, sized
+  and positioned to echo the mark's center target. Reading right-
+  to-left across the lockup, the eye lands on two orange dots —
+  the mark's target and the wordmark's. They're the same idea at
+  two scales. That's the lockup discipline.
+
+  The 'rs' is the same weight as 'tak'. We refuse the file-
+  extension subordination — tak-rs is one word.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 260" role="img" aria-label="tak-rs">
+  <style>
+    .wordmark {
+      font-family: ui-monospace, "SF Mono", "Cascadia Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+      font-weight: 700;
+      font-size: 168px;
+      letter-spacing: -0.04em;
+      fill: #0B1014;
+    }
+  </style>
+
+  <g transform="translate(30,30) scale(0.78125)">
+    <polygon
+      points="224,128 176,211.14 80,211.14 32,128 80,44.86 176,44.86"
+      fill="none" stroke="#0B1014" stroke-width="12" stroke-linejoin="miter"/>
+    <circle cx="128" cy="128" r="66" fill="none" stroke="#0B1014" stroke-width="9"/>
+    <line x1="128" y1="70"  x2="128" y2="106" stroke="#0B1014" stroke-width="9"/>
+    <line x1="150" y1="128" x2="186" y2="128" stroke="#0B1014" stroke-width="9"/>
+    <line x1="128" y1="150" x2="128" y2="186" stroke="#0B1014" stroke-width="9"/>
+    <line x1="70"  y1="128" x2="106" y2="128" stroke="#0B1014" stroke-width="9"/>
+    <circle cx="128" cy="128" r="11" fill="#CE422B"/>
+  </g>
+
+  <text class="wordmark" x="265" y="200">tak</text>
+  <circle cx="588" cy="195" r="14" fill="#CE422B"/>
+  <text class="wordmark" x="615" y="200">rs</text>
+</svg>

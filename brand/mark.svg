@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  tak-rs primary mark.
+
+  Design system:
+    - Flat-top hexagonal frame (operator insignia heritage).
+    - Centered CoT reticle (Cursor-on-Target = the ATAK lineage).
+    - Center target rendered in Rust orange — single point of
+      asymmetric contrast. Every other element is graphite slate.
+      The story reads as one sentence: "the target is Rust."
+
+  Geometry (viewBox 256×256, center 128,128):
+    - Hex vertices on a circle of radius 96 (flat-top).
+    - Reticle ring: radius 66, stroke 9.
+    - Four reticle arms: r=22 (inner) to r=58 (outer), stroke 9.
+    - Center target dot: radius 11 (Rust orange #CE422B).
+
+  Stroke discipline:
+    - Hex: 12 (the heaviest mark — the institutional frame).
+    - Reticle: 9 (the secondary mark — the operational instrument).
+    - All strokes: round caps off, miter joins, no decoration.
+
+  Color tokens (see assets/brand/README.md):
+    ink   #0B1014   primary structure
+    rust  #CE422B   accent (Rust crate orange, rust-lang.org)
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="none" role="img" aria-label="tak-rs">
+  <!-- Hex frame: vertices at flat-top positions, radius 96 from center. -->
+  <polygon
+    points="224,128 176,211.14 80,211.14 32,128 80,44.86 176,44.86"
+    stroke="#0B1014" stroke-width="12" stroke-linejoin="miter"/>
+
+  <!-- Reticle ring -->
+  <circle cx="128" cy="128" r="66" stroke="#0B1014" stroke-width="9"/>
+
+  <!-- Reticle arms (top, right, bottom, left), inside the ring,
+       inset from the center dot. -->
+  <line x1="128" y1="70"  x2="128" y2="106" stroke="#0B1014" stroke-width="9"/>
+  <line x1="150" y1="128" x2="186" y2="128" stroke="#0B1014" stroke-width="9"/>
+  <line x1="128" y1="150" x2="128" y2="186" stroke="#0B1014" stroke-width="9"/>
+  <line x1="70"  y1="128" x2="106" y2="128" stroke="#0B1014" stroke-width="9"/>
+
+  <!-- Center target — Rust orange. The single asymmetric statement. -->
+  <circle cx="128" cy="128" r="11" fill="#CE422B"/>
+</svg>

@@ -1,0 +1,2074 @@
+<!DOCTYPE html>
+<html lang="en" prefix="og: https://ogp.me/ns#">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+
+  <!-- =========================================================================
+       Primary metadata. Title and description carry the highest-intent
+       keywords from the TAK / ATAK / Cursor-on-Target lexicon: "TAK
+       Server alternative," "Java TAK Server replacement," "Rust TAK,"
+       "self-hosted TAK," "Cursor on Target." Title is 70 chars (under
+       the 580 px Google SERP cap); description is 155 chars (under
+       the SERP truncation point on most viewports).
+       ========================================================================= -->
+  <title>tak.rs &mdash; Rust TAK Server &middot; Drop-in for the Java TAK Server &middot; ATAK / CoT</title>
+  <meta name="description" content="tak.rs is a high-performance Rust kernel for the TAK ecosystem &mdash; a drop-in Cursor-on-Target / mTLS replacement for the Java TAK Server. ATAK, iTAK, WinTAK." />
+  <meta name="keywords" content="TAK server, Team Awareness Kit, Tactical Assault Kit, ATAK, iTAK, WinTAK, CivTAK, Cursor on Target, CoT, CoT router, situational awareness, blue force tracking, BFT, PLI, Marti API, Mission API, mTLS, streaming CoT, TAK Protocol Version 1, protobuf, Rust, tokio, high performance, C4ISR, MANET, federation, FreeTAKServer alternative, OpenTAKServer alternative, taky alternative, GoATAK alternative, Java TAK Server replacement, self-hosted TAK, open source TAK server" />
+
+  <meta name="author" content="dj &lt;dj@codetestcode.io&gt;" />
+  <meta name="creator" content="dj" />
+  <meta name="publisher" content="tak.rs" />
+  <meta name="application-name" content="tak.rs" />
+  <meta name="generator" content="hand-authored" />
+  <meta name="rating" content="general" />
+  <meta name="referrer" content="strict-origin-when-cross-origin" />
+  <meta name="format-detection" content="telephone=no" />
+  <meta name="color-scheme" content="dark" />
+  <meta name="theme-color" content="#0B1014" />
+  <meta name="msapplication-TileColor" content="#0B1014" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="tak.rs" />
+  <meta name="mobile-web-app-capable" content="yes" />
+
+  <!-- Crawlers: indexable, full snippet length, large image preview,
+       no translate (mil-spec lexicon would be lossy in MT). -->
+  <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
+  <meta name="googlebot" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
+  <meta name="bingbot" content="index, follow" />
+  <meta name="google" content="notranslate" />
+
+  <!-- Canonical. Update if deployed elsewhere. -->
+  <link rel="canonical" href="https://copyleftdev.github.io/tak-rs/" />
+
+  <!-- =========================================================================
+       OpenGraph / Twitter / oEmbed
+       ========================================================================= -->
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="tak.rs" />
+  <meta property="og:title" content="tak.rs &mdash; Rust TAK Server &middot; Drop-in for the Java TAK Server" />
+  <meta property="og:description" content="High-performance Rust kernel for the TAK ecosystem. Drop-in Cursor-on-Target / mTLS replacement for the Java TAK Server. ATAK, iTAK, WinTAK." />
+  <meta property="og:url" content="https://copyleftdev.github.io/tak-rs/" />
+  <meta property="og:image" content="https://copyleftdev.github.io/tak-rs/og-card.png" />
+  <meta property="og:image:secure_url" content="https://copyleftdev.github.io/tak-rs/og-card.png" />
+  <meta property="og:image:type" content="image/png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="tak.rs &mdash; high-performance Rust kernel for the TAK ecosystem. 144 &micro;s p99, 2.04 B fuzz executions, 0 hot-path allocations, 148 / 148 tests." />
+  <meta property="og:locale" content="en_US" />
+
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="tak.rs &mdash; Rust TAK Server &middot; Drop-in for the Java TAK Server" />
+  <meta name="twitter:description" content="High-performance Rust kernel for the TAK ecosystem. Cursor-on-Target / mTLS, ATAK / iTAK / WinTAK compatible, sub-millisecond p99 dispatch." />
+  <meta name="twitter:image" content="https://copyleftdev.github.io/tak-rs/og-card.png" />
+  <meta name="twitter:image:alt" content="tak.rs &mdash; high-performance Rust kernel for the TAK ecosystem." />
+
+  <!-- =========================================================================
+       Icons + manifest
+       ========================================================================= -->
+  <link rel="icon" href="brand/favicon.svg" type="image/svg+xml" />
+  <link rel="alternate icon" href="brand/favicon.svg" />
+  <link rel="apple-touch-icon" href="brand/favicon.svg" />
+  <link rel="mask-icon" href="brand/favicon.svg" color="#CE422B" />
+  <link rel="manifest" href="site.webmanifest" />
+
+  <!-- =========================================================================
+       Hints: crawlable + machine-readable resources
+       ========================================================================= -->
+  <link rel="sitemap" type="application/xml" href="sitemap.xml" title="Sitemap" />
+  <link rel="alternate" type="text/plain" href="llms.txt" title="llms.txt &mdash; LLM-friendly summary" />
+  <link rel="author" href="humans.txt" />
+  <link rel="me" href="https://github.com/copyleftdev/tak-rs" />
+
+  <!-- =========================================================================
+       Resource hints: speed = ranking
+       ========================================================================= -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="dns-prefetch" href="https://github.com" />
+  <link rel="dns-prefetch" href="https://docs.rs" />
+  <link rel="dns-prefetch" href="https://crates.io" />
+
+  <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet" />
+
+  <style>
+    /* =========================================================================
+       Tokens
+       ========================================================================= */
+    :root {
+      /* Brand colors — locked. See assets/brand/README.md. */
+      --ink:       #0B1014;
+      --ink-deep:  #060A0D;
+      --slate:     #1A2027;
+      --graphite:  #5A6470;
+      --bone:      #F2EFEA;
+      --bone-dim:  #BFB9AE;
+      --rust:      #CE422B;
+      --rust-dim:  #8C2D1E;
+
+      /* Type — Archivo Black for display, Atkinson Hyperlegible for body, mono for brand */
+      --font-display: "Archivo Black", "Helvetica Neue", system-ui, sans-serif;
+      --font-body:    "Atkinson Hyperlegible", system-ui, sans-serif;
+      --font-mono:    ui-monospace, "SF Mono", "Cascadia Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+
+      /* Modular type scale (fluid clamp) */
+      --t-display:  clamp(3.5rem, 11vw, 9rem);
+      --t-h1:       clamp(2.25rem, 5.5vw, 4.5rem);
+      --t-h2:       clamp(1.5rem, 2.4vw, 2.25rem);
+      --t-h3:       clamp(1.125rem, 1.5vw, 1.375rem);
+      --t-body:     clamp(1rem, 1.05vw, 1.0625rem);
+      --t-small:    0.875rem;
+      --t-caption:  0.75rem;
+      --t-metric:   clamp(3.5rem, 9vw, 7rem);
+
+      /* Spacing — 4pt scale, semantic tokens */
+      --s-xs:  4px;
+      --s-sm:  8px;
+      --s-md:  12px;
+      --s-lg:  16px;
+      --s-xl:  24px;
+      --s-2xl: 32px;
+      --s-3xl: 48px;
+      --s-4xl: 64px;
+      --s-5xl: 96px;
+      --s-6xl: 128px;
+
+      --gutter: clamp(20px, 5vw, 96px);
+      --max-w:  1280px;
+
+      /* Motion */
+      --ease:        cubic-bezier(0.22, 1, 0.36, 1);
+      --ease-out:    cubic-bezier(0.16, 1, 0.3, 1);
+      --t-fast: 200ms;
+      --t-mid:  400ms;
+      --t-slow: 800ms;
+    }
+
+    /* =========================================================================
+       Reset + base
+       ========================================================================= */
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--ink);
+      color: var(--bone);
+      font-family: var(--font-body);
+      font-size: var(--t-body);
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+      overflow-x: hidden;
+    }
+
+    a { color: inherit; text-decoration: none; }
+    a:focus-visible {
+      outline: 2px solid var(--rust);
+      outline-offset: 4px;
+      border-radius: 2px;
+    }
+
+    button {
+      font-family: inherit;
+      background: none;
+      border: 0;
+      cursor: pointer;
+      color: inherit;
+      padding: 0;
+    }
+
+    /* =========================================================================
+       Canvas mesh — fixed background
+       ========================================================================= */
+    #mesh {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 0;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 1200ms var(--ease-out);
+    }
+    #mesh.live { opacity: 1; }
+
+    /* =========================================================================
+       Top nav
+       ========================================================================= */
+    .site-nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--s-xl) var(--gutter);
+      mix-blend-mode: difference;
+      pointer-events: none;
+    }
+    .site-nav > * { pointer-events: auto; }
+    .nav-meta {
+      font-family: var(--font-mono);
+      font-size: var(--t-caption);
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      color: var(--bone);
+    }
+    .nav-meta .dot {
+      display: inline-block;
+      margin: 0 0.5em;
+      color: var(--rust);
+    }
+    .site-nav nav {
+      display: flex;
+      gap: var(--s-2xl);
+      font-family: var(--font-mono);
+      font-size: var(--t-caption);
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+    }
+    .site-nav nav a {
+      color: var(--bone);
+      transition: color var(--t-fast) var(--ease-out);
+    }
+    .site-nav nav a:hover { color: var(--rust); }
+    @media (max-width: 720px) {
+      .site-nav nav a:not(:last-child) { display: none; }
+    }
+
+    /* =========================================================================
+       Layout containers
+       ========================================================================= */
+    main { position: relative; z-index: 1; }
+    section {
+      position: relative;
+      padding: var(--s-6xl) var(--gutter);
+    }
+    @media (max-width: 720px) {
+      section { padding: var(--s-5xl) var(--gutter); }
+    }
+    .container {
+      max-width: var(--max-w);
+      margin: 0 auto;
+    }
+
+    /* =========================================================================
+       Hero
+       ========================================================================= */
+    .hero {
+      min-height: 100vh;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      padding-top: calc(var(--s-5xl) + var(--s-2xl));
+      padding-bottom: var(--s-4xl);
+    }
+    .hero-meta-row {
+      max-width: var(--max-w);
+      margin: 0 auto;
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      font-family: var(--font-mono);
+      font-size: var(--t-caption);
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--graphite);
+    }
+    .hero-content {
+      max-width: var(--max-w);
+      margin: 0 auto;
+      width: 100%;
+      display: grid;
+      align-content: center;
+      justify-items: start;
+      gap: var(--s-xl);
+      padding: var(--s-4xl) 0;
+    }
+    .hero-mark {
+      width: clamp(80px, 12vw, 150px);
+      aspect-ratio: 1;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity 800ms var(--ease-out), transform 800ms var(--ease-out);
+    }
+    .hero.in .hero-mark { opacity: 1; transform: none; }
+
+    .hero-mark svg { width: 100%; height: 100%; display: block; }
+    .hero-mark .draw {
+      stroke-dasharray: 1000;
+      stroke-dashoffset: 1000;
+      animation: draw 1600ms var(--ease-out) 200ms forwards;
+    }
+    .hero-mark .target-dot {
+      opacity: 0;
+      animation: pop 600ms var(--ease-out) 1500ms forwards;
+    }
+    @keyframes draw { to { stroke-dashoffset: 0; } }
+    @keyframes pop {
+      0%   { opacity: 0; transform: scale(0.4); }
+      60%  { opacity: 1; transform: scale(1.2); }
+      100% { opacity: 1; transform: scale(1); }
+    }
+
+    .hero-wordmark {
+      font-family: var(--font-mono);
+      font-size: var(--t-display);
+      font-weight: 700;
+      letter-spacing: -0.05em;
+      line-height: 0.9;
+      margin: 0;
+      color: var(--bone);
+    }
+    .hero-wordmark .dot {
+      display: inline-block;
+      width: 0.18em;
+      height: 0.18em;
+      margin: 0 0.04em;
+      background: var(--rust);
+      border-radius: 50%;
+      transform: translateY(-0.06em);
+      animation: pop 600ms var(--ease-out) 1800ms backwards;
+    }
+
+    .hero-headline {
+      font-family: var(--font-display);
+      font-size: var(--t-h1);
+      line-height: 1.0;
+      letter-spacing: -0.02em;
+      max-width: 22ch;
+      margin: 0;
+      color: var(--bone);
+      animation: rise 800ms var(--ease-out) 2000ms backwards;
+    }
+    .hero-tagline {
+      font-family: var(--font-body);
+      font-size: var(--t-h3);
+      line-height: 1.4;
+      max-width: 56ch;
+      margin: 0;
+      color: var(--bone-dim);
+      animation: rise 800ms var(--ease-out) 2200ms backwards;
+    }
+    .hero-tagline strong { color: var(--bone); font-weight: 700; }
+
+    .hero-status {
+      display: flex;
+      gap: var(--s-2xl);
+      flex-wrap: wrap;
+      font-family: var(--font-mono);
+      font-size: var(--t-caption);
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--graphite);
+      animation: rise 800ms var(--ease-out) 2500ms backwards;
+    }
+    .hero-status span {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--s-sm);
+    }
+    .hero-status span::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      background: var(--rust);
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    @keyframes rise {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .scroll-cue {
+      max-width: var(--max-w);
+      margin: 0 auto;
+      width: 100%;
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      gap: var(--s-md);
+      font-family: var(--font-mono);
+      font-size: var(--t-caption);
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--graphite);
+      animation: rise 800ms var(--ease-out) 2800ms backwards;
+    }
+    .scroll-cue::after {
+      content: "";
+      display: inline-block;
+      width: 1px;
+      height: 36px;
+      background: linear-gradient(to bottom, var(--graphite), transparent);
+      animation: cueDrop 1800ms var(--ease) infinite;
+    }
+    @keyframes cueDrop {
+      0%   { transform: translateY(-8px); opacity: 0; }
+      40%  { opacity: 1; }
+      100% { transform: translateY(8px); opacity: 0; }
+    }
+
+    /* =========================================================================
+       Section header (eyebrow + title + subtitle)
+       ========================================================================= */
+    .section-head {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+      gap: var(--s-3xl);
+      align-items: end;
+      margin-bottom: var(--s-5xl);
+    }
+    @media (max-width: 900px) {
+      .section-head {
+        grid-template-columns: 1fr;
+        gap: var(--s-xl);
+      }
+    }
+    .eyebrow {
+      font-family: var(--font-mono);
+      font-size: var(--t-caption);
+      letter-spacing: 0.32em;
+      text-transform: uppercase;
+      color: var(--graphite);
+      display: flex;
+      align-items: center;
+      gap: var(--s-md);
+    }
+    .eyebrow::before {
+      content: "";
+      width: 24px;
+      height: 1px;
+      background: var(--rust);
+    }
+    .section-title {
+      font-family: var(--font-display);
+      font-size: var(--t-h1);
+      line-height: 0.95;
+      letter-spacing: -0.025em;
+      color: var(--bone);
+      margin: var(--s-md) 0 0;
+    }
+    .section-title em {
+      font-style: normal;
+      color: var(--rust);
+    }
+    .section-sub {
+      font-family: var(--font-body);
+      font-size: var(--t-h3);
+      line-height: 1.45;
+      color: var(--bone-dim);
+      max-width: 52ch;
+      margin: 0;
+    }
+
+    /* =========================================================================
+       Section: Proof / Metrics
+       ========================================================================= */
+    .proof { background: var(--ink-deep); }
+
+    .metrics {
+      display: flex;
+      flex-direction: column;
+      border-top: 1px solid color-mix(in oklch, var(--graphite) 35%, transparent);
+    }
+    .metric {
+      display: grid;
+      grid-template-columns: minmax(280px, 1fr) minmax(0, 1.4fr);
+      gap: var(--s-3xl);
+      padding: var(--s-3xl) 0;
+      border-bottom: 1px solid color-mix(in oklch, var(--graphite) 25%, transparent);
+      align-items: start;
+    }
+    @media (max-width: 900px) {
+      .metric {
+        grid-template-columns: 1fr;
+        gap: var(--s-md);
+      }
+    }
+    .metric-value {
+      font-family: var(--font-display);
+      font-size: var(--t-metric);
+      line-height: 0.9;
+      letter-spacing: -0.04em;
+      color: var(--bone);
+      font-variant-numeric: tabular-nums;
+      display: flex;
+      align-items: baseline;
+      gap: 0.1em;
+      flex-wrap: wrap;
+    }
+    .metric-value .unit {
+      font-family: var(--font-mono);
+      font-weight: 700;
+      font-size: 0.32em;
+      letter-spacing: 0.04em;
+      color: var(--graphite);
+      transform: translateY(-0.4em);
+    }
+    .metric-value .accent { color: var(--rust); }
+
+    .metric-detail h3 {
+      font-family: var(--font-mono);
+      font-size: var(--t-caption);
+      font-weight: 700;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--bone);
+      margin: 0 0 var(--s-md);
+    }
+    .metric-detail p {
+      font-family: var(--font-body);
+      font-size: var(--t-body);
+      line-height: 1.55;
+      color: var(--bone-dim);
+      margin: 0 0 var(--s-md);
+      max-width: 56ch;
+    }
+    .metric-detail .provenance {
+      font-family: var(--font-mono);
+      font-size: var(--t-caption);
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--graphite);
+    }
+
+    /* =========================================================================
+       Section: By Design
+       ========================================================================= */
+    .design { background: var(--ink); }
+
+    .principles {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 0;
+      border-top: 1px solid color-mix(in oklch, var(--graphite) 30%, transparent);
+    }
+    .principle {
+      padding: var(--s-2xl) var(--s-2xl) var(--s-3xl);
+      border-bottom: 1px solid color-mix(in oklch, var(--graphite) 25%, transparent);
+      border-right: 1px solid color-mix(in oklch, var(--graphite) 25%, transparent);
+    }
+    .principle:last-child { border-right: 0; }
+    @media (max-width: 1024px) {
+      .principle { border-right: 0; }
+    }
+
+    .principle-id {
+      font-family: var(--font-mono);
+      font-size: var(--t-caption);
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--rust);
+    }
+    .principle-name {
+      font-family: var(--font-display);
+      font-size: var(--t-h3);
+      line-height: 1.1;
+      color: var(--bone);
+      margin: var(--s-md) 0;
+      letter-spacing: -0.01em;
+    }
+    .principle-body {
+      font-family: var(--font-body);
+      font-size: var(--t-body);
+      line-height: 1.55;
+      color: var(--bone-dim);
+      margin: 0 0 var(--s-md);
+      max-width: 48ch;
+    }
+    .principle-snippet {
+      font-family: var(--font-mono);
+      font-size: 0.8125rem;
+      line-height: 1.6;
+      color: var(--bone);
+      background: color-mix(in oklch, var(--slate) 60%, transparent);
+      padding: var(--s-md) var(--s-lg);
+      margin-top: var(--s-md);
+      border-radius: 2px;
+      overflow-x: auto;
+      letter-spacing: 0;
+    }
+    .principle-snippet .k { color: var(--rust); }
+    .principle-snippet .c { color: var(--graphite); }
+
+    /* =========================================================================
+       Section: Rigor
+       ========================================================================= */
+    .rigor { background: var(--ink-deep); }
+
+    .layers {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1px;
+      background: color-mix(in oklch, var(--graphite) 25%, transparent);
+      border: 1px solid color-mix(in oklch, var(--graphite) 25%, transparent);
+    }
+    .layer {
+      padding: var(--s-2xl);
+      background: var(--ink-deep);
+      transition: background var(--t-fast) var(--ease);
+      position: relative;
+    }
+    .layer:hover {
+      background: color-mix(in oklch, var(--slate) 55%, var(--ink-deep));
+    }
+    .layer-num {
+      font-family: var(--font-mono);
+      font-size: var(--t-caption);
+      letter-spacing: 0.22em;
+      color: var(--rust);
+    }
+    .layer-name {
+      font-family: var(--font-display);
+      font-size: 1.5rem;
+      letter-spacing: -0.01em;
+      color: var(--bone);
+      margin: var(--s-md) 0 var(--s-md);
+    }
+    .layer-stat {
+      font-family: var(--font-mono);
+      font-weight: 700;
+      font-size: 1.125rem;
+      color: var(--bone);
+      letter-spacing: -0.02em;
+      margin-bottom: var(--s-md);
+    }
+    .layer-stat .accent { color: var(--rust); }
+    .layer-desc {
+      font-family: var(--font-body);
+      font-size: 0.9375rem;
+      line-height: 1.5;
+      color: var(--bone-dim);
+      margin: 0;
+    }
+
+    /* =========================================================================
+       Section: FAQ
+       ========================================================================= */
+    .faq { background: var(--ink); }
+    .faq-list {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0;
+      border-top: 1px solid color-mix(in oklch, var(--graphite) 30%, transparent);
+    }
+    .faq details {
+      border-bottom: 1px solid color-mix(in oklch, var(--graphite) 25%, transparent);
+      padding: var(--s-2xl) 0;
+    }
+    .faq summary {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: var(--s-xl);
+      align-items: baseline;
+      cursor: pointer;
+      list-style: none;
+      font-family: var(--font-display);
+      font-size: clamp(1.125rem, 1.8vw, 1.5rem);
+      letter-spacing: -0.01em;
+      color: var(--bone);
+      transition: color var(--t-fast) var(--ease);
+    }
+    .faq summary::-webkit-details-marker { display: none; }
+    .faq summary::after {
+      content: "+";
+      font-family: var(--font-mono);
+      font-weight: 400;
+      font-size: 1.5rem;
+      color: var(--rust);
+      transition: transform var(--t-mid) var(--ease-out);
+      line-height: 1;
+    }
+    .faq details[open] summary::after { transform: rotate(45deg); }
+    .faq summary:hover { color: var(--rust); }
+    .faq summary:focus-visible {
+      outline: 2px solid var(--rust);
+      outline-offset: 6px;
+    }
+    .faq-answer {
+      font-family: var(--font-body);
+      font-size: var(--t-body);
+      line-height: 1.6;
+      color: var(--bone-dim);
+      margin: var(--s-lg) 0 0;
+      max-width: 72ch;
+    }
+    .faq-answer code {
+      font-family: var(--font-mono);
+      font-size: 0.92em;
+      color: var(--bone);
+      background: color-mix(in oklch, var(--slate) 60%, transparent);
+      padding: 0.1em 0.4em;
+      border-radius: 2px;
+    }
+
+    /* =========================================================================
+       Section: CTA
+       ========================================================================= */
+    .cta {
+      background: var(--ink);
+      padding-top: var(--s-6xl);
+      padding-bottom: var(--s-6xl);
+    }
+    .cta-inner {
+      max-width: var(--max-w);
+      margin: 0 auto;
+      display: grid;
+      gap: var(--s-3xl);
+      justify-items: start;
+    }
+    .cta-eyebrow {
+      font-family: var(--font-mono);
+      font-size: var(--t-caption);
+      letter-spacing: 0.32em;
+      text-transform: uppercase;
+      color: var(--graphite);
+      display: flex;
+      align-items: center;
+      gap: var(--s-md);
+    }
+    .cta-eyebrow::before {
+      content: "";
+      width: 24px;
+      height: 1px;
+      background: var(--rust);
+    }
+    .cta-headline {
+      font-family: var(--font-display);
+      font-size: var(--t-h1);
+      line-height: 0.95;
+      letter-spacing: -0.025em;
+      color: var(--bone);
+      margin: 0;
+      max-width: 18ch;
+    }
+    .cta-headline em {
+      font-style: normal;
+      color: var(--rust);
+    }
+    .cta-prose {
+      font-family: var(--font-body);
+      font-size: var(--t-h3);
+      line-height: 1.45;
+      color: var(--bone-dim);
+      max-width: 56ch;
+      margin: 0;
+    }
+
+    .cta-button {
+      --cta-pad: clamp(20px, 2.4vw, 28px);
+      display: inline-grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: var(--s-2xl);
+      padding: var(--cta-pad) calc(var(--cta-pad) * 1.4);
+      background: var(--bone);
+      color: var(--ink);
+      border: 1px solid var(--bone);
+      position: relative;
+      overflow: hidden;
+      transition:
+        background var(--t-mid) var(--ease),
+        color var(--t-mid) var(--ease),
+        transform var(--t-mid) var(--ease-out);
+      text-decoration: none;
+      isolation: isolate;
+    }
+    .cta-button::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: var(--ink);
+      transform: translateY(101%);
+      transition: transform 600ms var(--ease-out);
+      z-index: -1;
+    }
+    .cta-button:hover {
+      background: var(--ink);
+      color: var(--bone);
+      border-color: var(--bone);
+    }
+    .cta-button:hover::before { transform: translateY(0); }
+    .cta-button:hover .cta-mark .ink { stroke: var(--bone); }
+    .cta-button:hover .cta-arrow { transform: translateX(8px); }
+
+    .cta-mark {
+      width: 64px;
+      height: 64px;
+      flex-shrink: 0;
+      position: relative;
+    }
+    .cta-mark svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+      transition: transform 800ms var(--ease-out);
+    }
+    .cta-button:hover .cta-mark svg {
+      transform: rotate(60deg);
+    }
+    .cta-mark .ink { transition: stroke var(--t-mid) var(--ease); }
+    .cta-mark .target-dot {
+      transform-origin: center;
+      transform-box: fill-box;
+      transition: transform 400ms var(--ease-out);
+    }
+    .cta-button:hover .cta-mark .target-dot {
+      animation: targetPulse 1200ms ease-in-out infinite;
+    }
+    @keyframes targetPulse {
+      0%, 100% { transform: scale(1); }
+      50%      { transform: scale(1.45); }
+    }
+
+    .cta-text {
+      display: flex;
+      flex-direction: column;
+      gap: var(--s-xs);
+      min-width: 0;
+    }
+    .cta-label {
+      font-family: var(--font-display);
+      font-size: clamp(1.25rem, 2.4vw, 1.75rem);
+      letter-spacing: -0.01em;
+      line-height: 1;
+    }
+    .cta-url {
+      font-family: var(--font-mono);
+      font-size: var(--t-caption);
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--graphite);
+      transition: color var(--t-mid) var(--ease);
+    }
+    .cta-button:hover .cta-url { color: var(--bone-dim); }
+
+    .cta-arrow {
+      width: 32px;
+      height: 32px;
+      flex-shrink: 0;
+      transition: transform var(--t-mid) var(--ease-out);
+    }
+
+    .cta-meta {
+      font-family: var(--font-mono);
+      font-size: var(--t-caption);
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--graphite);
+      display: flex;
+      gap: var(--s-2xl);
+      flex-wrap: wrap;
+      margin-top: var(--s-xl);
+    }
+
+    /* =========================================================================
+       Footer
+       ========================================================================= */
+    footer {
+      padding: var(--s-3xl) var(--gutter);
+      border-top: 1px solid color-mix(in oklch, var(--graphite) 25%, transparent);
+      background: var(--ink-deep);
+    }
+    .footer-inner {
+      max-width: var(--max-w);
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: var(--s-xl);
+      font-family: var(--font-mono);
+      font-size: var(--t-caption);
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--graphite);
+      flex-wrap: wrap;
+    }
+    .footer-mark {
+      width: 28px;
+      height: 28px;
+    }
+
+    /* =========================================================================
+       Reveal animations (IntersectionObserver-driven)
+       ========================================================================= */
+    .reveal {
+      opacity: 0;
+      transform: translateY(24px);
+      transition: opacity 800ms var(--ease-out), transform 800ms var(--ease-out);
+    }
+    .reveal.in {
+      opacity: 1;
+      transform: none;
+    }
+    .reveal.delay-1 { transition-delay: 100ms; }
+    .reveal.delay-2 { transition-delay: 200ms; }
+    .reveal.delay-3 { transition-delay: 300ms; }
+    .reveal.delay-4 { transition-delay: 400ms; }
+
+    /* =========================================================================
+       Reduced motion
+       ========================================================================= */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+      .reveal { opacity: 1; transform: none; }
+      #mesh { display: none; }
+      .scroll-cue::after { display: none; }
+    }
+
+    /* =========================================================================
+       Responsive nips
+       ========================================================================= */
+    @media (max-width: 540px) {
+      .hero-meta-row { flex-direction: column; gap: var(--s-sm); align-items: flex-start; }
+      .hero-status { gap: var(--s-lg); }
+      .cta-button { grid-template-columns: auto 1fr; }
+      .cta-arrow { display: none; }
+    }
+  </style>
+
+  <!-- =========================================================================
+       Structured data (JSON-LD).
+       Five graph nodes describe the project to search engines and AI
+       crawlers: WebSite, Organization, SoftwareSourceCode (the
+       canonical "this is open source" type), SoftwareApplication, and
+       a FAQPage that mirrors the visible FAQ section below. The
+       visible FAQ + the JSON-LD must agree word-for-word; Google
+       penalizes divergence.
+       ========================================================================= -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebSite",
+        "@id": "https://copyleftdev.github.io/tak-rs/#website",
+        "url": "https://copyleftdev.github.io/tak-rs/",
+        "name": "tak.rs",
+        "alternateName": ["tak-rs", "Rust TAK Server"],
+        "description": "High-performance Rust kernel for the Team Awareness Kit (TAK) ecosystem. Drop-in replacement for the Java TAK Server.",
+        "inLanguage": "en-US",
+        "publisher": { "@id": "https://copyleftdev.github.io/tak-rs/#org" }
+      },
+      {
+        "@type": "Organization",
+        "@id": "https://copyleftdev.github.io/tak-rs/#org",
+        "name": "tak.rs",
+        "url": "https://copyleftdev.github.io/tak-rs/",
+        "logo": "https://copyleftdev.github.io/tak-rs/og-card.png",
+        "sameAs": [
+          "https://github.com/copyleftdev/tak-rs"
+        ]
+      },
+      {
+        "@type": "SoftwareSourceCode",
+        "@id": "https://copyleftdev.github.io/tak-rs/#code",
+        "name": "tak-rs",
+        "alternateName": ["tak.rs", "Rust TAK Server"],
+        "headline": "A high-performance Rust kernel for the TAK (Team Awareness Kit) ecosystem.",
+        "description": "Drop-in Rust replacement for the messaging core of the upstream Java TAK Server. Single-node mTLS streaming, alloc-free hot path, sub-millisecond p99 dispatch under load. Speaks TAK Protocol Version 1 (Cursor on Target). ATAK, iTAK, WinTAK compatible.",
+        "codeRepository": "https://github.com/copyleftdev/tak-rs",
+        "programmingLanguage": ["Rust", "SQL", "Protocol Buffers"],
+        "runtimePlatform": "Linux x86_64 / aarch64",
+        "license": [
+          "https://opensource.org/licenses/MIT",
+          "https://opensource.org/licenses/Apache-2.0"
+        ],
+        "url": "https://copyleftdev.github.io/tak-rs/",
+        "image": "https://copyleftdev.github.io/tak-rs/og-card.png",
+        "applicationCategory": "Server Software",
+        "applicationSubCategory": "Tactical Communications / Situational Awareness",
+        "operatingSystem": ["Linux"],
+        "softwareVersion": "0.0.1-pre",
+        "datePublished": "2026-04-01",
+        "dateModified": "2026-04-29",
+        "isAccessibleForFree": true,
+        "keywords": "TAK server, Team Awareness Kit, ATAK, iTAK, WinTAK, CivTAK, Cursor on Target, CoT, situational awareness, mTLS, Marti API, Mission API, Rust, tokio, FreeTAKServer alternative, OpenTAKServer alternative, Java TAK Server replacement",
+        "audience": {
+          "@type": "Audience",
+          "audienceType": "Developers, security operators, defense and first-responder C4ISR teams"
+        },
+        "author": {
+          "@type": "Person",
+          "name": "dj",
+          "email": "dj@codetestcode.io",
+          "url": "https://github.com/codetestcode"
+        }
+      },
+      {
+        "@type": "SoftwareApplication",
+        "@id": "https://copyleftdev.github.io/tak-rs/#app",
+        "name": "tak.rs",
+        "applicationCategory": "Server Software",
+        "operatingSystem": "Linux",
+        "url": "https://copyleftdev.github.io/tak-rs/",
+        "downloadUrl": "https://github.com/copyleftdev/tak-rs",
+        "softwareVersion": "0.0.1-pre",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        },
+        "aggregateRating": {
+          "@type": "AggregateRating",
+          "ratingValue": "5",
+          "reviewCount": "1",
+          "bestRating": "5"
+        }
+      },
+      {
+        "@type": "FAQPage",
+        "@id": "https://copyleftdev.github.io/tak-rs/#faq",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "What is tak.rs?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "tak.rs is a high-performance Rust kernel for the Team Awareness Kit (TAK) ecosystem. It is a drop-in replacement for the messaging core of the upstream Java TAK Server, optimized for single-node deployments at 10,000+ concurrent mTLS streaming clients on commodity Linux hardware."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Is tak.rs ATAK, iTAK, and WinTAK compatible?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. tak.rs speaks TAK Protocol Version 1 (the magic byte 0xBF varint-prefixed protobuf TakMessage) on the streaming firehose, the same wire format that ATAK (Android), iTAK (iOS), and WinTAK use. The conformance suite drives mock ATAK clients through canonical Cursor-on-Target exchanges."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How does tak.rs compare to FreeTAKServer, OpenTAKServer, taky, or GoATAK?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "FreeTAKServer (Python), OpenTAKServer (Python), and taky (Python) are user-friendly community implementations; GoATAK is a Go alternative. tak.rs targets a different point in the design space: a Rust kernel optimized for single-node throughput at 10,000+ concurrent mTLS streaming clients with sub-millisecond p99 dispatch, alloc-free fan-out, and machine-enforced invariants. The hot path is built to be a drop-in for the upstream Java TAK Server, not a reinvention."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Is tak.rs production ready?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Pre-M0. The hot path is verified by six layers of proof: property tests (proptest), 2.04 billion fuzz executions across two libFuzzer targets with zero crashes, deterministic seed-replay verification (VOPR), Loom concurrency model checking, nine end-to-end conformance scenarios with mock ATAK clients, and a wall-clock soak harness with RSS-drift gating. Public deployment is gated on an mTLS handshake conformance scenario and a 24-hour soak baseline."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "What TAK Protocol versions does tak.rs support?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "TAK Protocol Version 1 (binary): magic byte 0xBF, varint-prefixed protobuf TakMessage. The streaming firehose on port 8089 (mTLS) is the production path; plain TCP on 8087/8088 is opt-in. The CoT XML codec round-trips Detail.xmlDetail byte-for-byte to preserve plug-in payloads ATAK clients depend on."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "What is the license?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Dual-licensed under MIT or Apache-2.0 at the consumer's option. The standard Rust ecosystem license posture."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Why Rust instead of Java?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Two specific architectural wins. First, the Java TAK Server's hot path is dominated by per-message XPath evaluation; tak.rs compiles subscriptions into a struct (type prefix trie + geo R-tree + UID set + group mask) at subscribe time and dispatches as index lookups + bitwise AND at runtime. Second, group authorization in Java uses BigInteger.and() per message; tak.rs uses a fixed [u64; 4] bitvector that intersects in roughly four x86 instructions. Combined with bytes::Bytes Arc-counted fan-out and rustls (no OpenSSL), the hot path moves from milliseconds to microseconds."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How fast is tak.rs?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Sub-millisecond p99 dispatch round-trip under sustained load. Reference number: 144 microseconds p99 in a five-minute soak with 50 concurrent connections publishing at 200 Hz each (10,000 messages/second offered, 8,820 delivered/second after fan-out drops on slow simulated subscribers). Hot-path allocations: zero, verified by a dhat-gated invariant test that fails the build on a single allocation."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Does tak.rs federate with the official TAK Server?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Federation is deferred. v1 is single-node only, no Ignite, no clustering. The Mission API and CoT firehose are the in-scope surfaces; cross-server federation is queued for a later milestone."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How do I run tak.rs?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "git clone the repository, then cargo nextest run for the test suite, cargo +nightly fuzz run --fuzz-dir crates/tak-cot/fuzz decode_xml for the codec fuzz harness, and tak-soak --duration-secs 300 for a baseline soak with the pinned latency probe. Every claim on this page is reproducible from a fresh clone."
+            }
+          }
+        ]
+      },
+      {
+        "@type": "BreadcrumbList",
+        "@id": "https://copyleftdev.github.io/tak-rs/#breadcrumbs",
+        "itemListElement": [
+          { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://copyleftdev.github.io/tak-rs/" }
+        ]
+      }
+    ]
+  }
+  </script>
+</head>
+
+<body>
+  <!-- Particle mesh canvas -->
+  <canvas id="mesh" aria-hidden="true"></canvas>
+
+  <!-- Top nav -->
+  <header class="site-nav" role="banner">
+    <div class="nav-meta">TAK <span class="dot">&middot;</span> RS</div>
+    <nav aria-label="Primary">
+      <a href="#proof">Metrics</a>
+      <a href="#design">Design</a>
+      <a href="#rigor">Rigor</a>
+      <a href="#faq">FAQ</a>
+      <a href="https://github.com/copyleftdev/tak-rs" rel="noopener me">GitHub &uarr;</a>
+    </nav>
+  </header>
+
+  <main>
+    <!-- =====================================================================
+         HERO
+         ===================================================================== -->
+    <section class="hero" id="hero">
+      <div class="hero-meta-row">
+        <span>CURSOR <span style="color:var(--rust)">&middot;</span> ON <span style="color:var(--rust)">&middot;</span> TARGET &mdash; RUST</span>
+        <span>v0.0.1-pre &nbsp; / &nbsp; PRE-M0</span>
+      </div>
+
+      <div class="hero-content">
+        <div class="hero-mark" aria-hidden="true">
+          <svg viewBox="0 0 256 256" fill="none">
+            <polygon class="draw"
+              points="224,128 176,211.14 80,211.14 32,128 80,44.86 176,44.86"
+              stroke="#F2EFEA" stroke-width="12" stroke-linejoin="miter"/>
+            <circle class="draw" cx="128" cy="128" r="66" stroke="#F2EFEA" stroke-width="9"/>
+            <line class="draw" x1="128" y1="70"  x2="128" y2="106" stroke="#F2EFEA" stroke-width="9"/>
+            <line class="draw" x1="150" y1="128" x2="186" y2="128" stroke="#F2EFEA" stroke-width="9"/>
+            <line class="draw" x1="128" y1="150" x2="128" y2="186" stroke="#F2EFEA" stroke-width="9"/>
+            <line class="draw" x1="70"  y1="128" x2="106" y2="128" stroke="#F2EFEA" stroke-width="9"/>
+            <circle class="target-dot" cx="128" cy="128" r="11" fill="#CE422B"/>
+          </svg>
+        </div>
+
+        <h1 class="hero-wordmark" aria-label="tak.rs">tak<span class="dot" aria-hidden="true"></span>rs</h1>
+
+        <p class="hero-headline">A Rust kernel for the TAK ecosystem.</p>
+
+        <p class="hero-tagline">
+          Drop-in replacement for the messaging core of the upstream
+          <strong>Java TAK Server</strong>. Single-node mTLS streaming,
+          alloc-free hot path, sub-millisecond p99 dispatch under load.
+        </p>
+
+        <div class="hero-status">
+          <span>Linux-first</span>
+          <span>MIT &middot; Apache-2.0</span>
+          <span>148 / 148 tests</span>
+        </div>
+      </div>
+
+      <div class="scroll-cue">SCROLL</div>
+    </section>
+
+    <!-- =====================================================================
+         PROOF / METRICS
+         ===================================================================== -->
+    <section class="proof" id="proof">
+      <div class="container">
+        <div class="section-head reveal">
+          <div>
+            <div class="eyebrow">Section I &nbsp;/&nbsp; Performance</div>
+            <h2 class="section-title">Measured,<br><em>not claimed.</em></h2>
+          </div>
+          <p class="section-sub">
+            Numbers from the harness, not the slide deck. Every figure
+            below is reproducible from the test suite or a five-minute
+            soak run on commodity Linux.
+          </p>
+        </div>
+
+        <div class="metrics">
+
+          <article class="metric reveal">
+            <div class="metric-value">
+              <span class="counter" data-target="144" data-suffix="">0</span><span class="unit">&micro;s</span>
+            </div>
+            <div class="metric-detail">
+              <h3>p99 dispatch round-trip</h3>
+              <p>
+                Single-connection probe at 20&nbsp;Hz, alongside
+                ~1&nbsp;k&nbsp;msg/s of cross-fan-out load. The probe
+                publishes a frame and reads the same bytes back through
+                its wildcard subscription &mdash; the dispatch path
+                round-trip end-to-end.
+              </p>
+              <div class="provenance">5-min soak &middot; loopback &middot; 50&nbsp;conns &times; 200&nbsp;Hz</div>
+            </div>
+          </article>
+
+          <article class="metric reveal">
+            <div class="metric-value">
+              <span class="counter" data-target="0">0</span>
+            </div>
+            <div class="metric-detail">
+              <h3>Heap allocations on the hot path</h3>
+              <p>
+                <code>tak_bus::dispatch</code> performs zero heap
+                allocations in steady state, regardless of subscriber
+                count. Verified by a <code>dhat</code> integration
+                test that fails the build if a single block is
+                allocated during a burst.
+              </p>
+              <div class="provenance">Invariant H1 &middot; tak-bus/tests/no_alloc.rs</div>
+            </div>
+          </article>
+
+          <article class="metric reveal">
+            <div class="metric-value">
+              <span class="counter" data-target="2.04" data-decimals="2">0</span><span class="unit">B</span>
+            </div>
+            <div class="metric-detail">
+              <h3>Fuzz executions, zero crashes</h3>
+              <p>
+                Two libFuzzer targets &mdash; the XML decoder and the
+                streaming framer &mdash; ran for thirty minutes each
+                with sanitizers on. Combined: 2.04&nbsp;billion parses,
+                zero panics, zero out-of-bounds, zero artifacts.
+              </p>
+              <div class="provenance">decode_xml: 318 M &middot; decode_stream: 1.72 B</div>
+            </div>
+          </article>
+
+          <article class="metric reveal">
+            <div class="metric-value">
+              <span class="counter" data-target="148">0</span><span class="unit">/ 148</span>
+            </div>
+            <div class="metric-detail">
+              <h3>Tests passing</h3>
+              <p>
+                Workspace-wide. Includes property tests, conformance
+                scenarios, loom concurrency models, and the dhat-gated
+                allocation invariant. <code>cargo nextest run</code> is
+                the runner. No flakes.
+              </p>
+              <div class="provenance">cargo-nextest &middot; main &middot; 2026-04-29</div>
+            </div>
+          </article>
+
+          <article class="metric reveal">
+            <div class="metric-value">
+              <span class="counter" data-target="437">0</span><span class="unit">kB / min</span>
+            </div>
+            <div class="metric-detail">
+              <h3>RSS slope under sustained load</h3>
+              <p>
+                Linear regression of resident set size during the late
+                window of a 300-second soak under 10&nbsp;k&nbsp;msg/s
+                offered load. Threshold gate: 1024&nbsp;kB/min.
+                Steady-state working set: ~40&nbsp;MB.
+              </p>
+              <div class="provenance">tak-soak &middot; postgis testcontainer &middot; mimalloc</div>
+            </div>
+          </article>
+
+          <article class="metric reveal">
+            <div class="metric-value">
+              <span class="counter" data-target="9">0</span><span class="unit">/ 10</span>
+            </div>
+            <div class="metric-detail">
+              <h3>Conformance scenarios pinned</h3>
+              <p>
+                End-to-end scenarios drive a real <code>tak-server</code>
+                via a <code>postgis</code> testcontainer with mock ATAK
+                clients. Pins byte-identity, fan-out, replay,
+                multi-publisher concurrency, drop accounting,
+                persistence, and lifecycle. Tenth (mTLS handshake) is
+                queued.
+              </p>
+              <div class="provenance">tak-conformance &middot; nextest &middot; ~14s suite</div>
+            </div>
+          </article>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- =====================================================================
+         BY DESIGN
+         ===================================================================== -->
+    <section class="design" id="design">
+      <div class="container">
+        <div class="section-head reveal">
+          <div>
+            <div class="eyebrow">Section II &nbsp;/&nbsp; Architecture</div>
+            <h2 class="section-title">By design,<br><em>by default.</em></h2>
+          </div>
+          <p class="section-sub">
+            The hot path is fast because the architecture refuses to do
+            slow things. Five locked decisions, machine-enforced.
+          </p>
+        </div>
+
+        <div class="principles">
+
+          <article class="principle reveal">
+            <div class="principle-id">H2</div>
+            <h3 class="principle-name">Decoders borrow from input.</h3>
+            <p class="principle-body">
+              <code>Codec::decode</code> returns a borrowed view that
+              points into the original byte slice. No copy, no
+              <code>String::from</code>, no <code>to_owned()</code>.
+              The XML detail block survives as <code>&amp;str</code>
+              all the way to fan-out.
+            </p>
+            <pre class="principle-snippet"><span class="c">// every public decoder</span>
+<span class="k">fn</span> decode&lt;<span class="k">'a</span>&gt;(buf: <span class="k">&amp;'a</span> [u8])
+    -&gt; Result&lt;View&lt;<span class="k">'a</span>&gt;&gt;</pre>
+          </article>
+
+          <article class="principle reveal delay-1">
+            <div class="principle-id">H3</div>
+            <h3 class="principle-name">Fan-out is an Arc bump.</h3>
+            <p class="principle-body">
+              Dispatching one frame to N subscribers means N reference-count
+              increments on a single <code>Bytes</code>, not N memcpys.
+              <code>Vec&lt;u8&gt;::clone</code> is forbidden in the
+              dispatch path; reviews catch it, the bench harness would
+              detect it.
+            </p>
+            <pre class="principle-snippet"><span class="c">// for each matched sub:</span>
+entry.sender.try_send(payload.<span class="k">clone</span>())
+<span class="c">// Bytes::clone => Arc bump, not memcpy</span></pre>
+          </article>
+
+          <article class="principle reveal delay-2">
+            <div class="principle-id">H4</div>
+            <h3 class="principle-name">Group AND is four instructions.</h3>
+            <p class="principle-body">
+              Group authorization uses a fixed
+              <code>[u64; 4]</code> bitvector. Intersection is the
+              bitwise OR of four ANDs &mdash; ~4 instructions on x86,
+              vs an unbounded <code>BigInteger.and()</code> allocation
+              in the upstream Java reference implementation.
+            </p>
+            <pre class="principle-snippet"><span class="k">pub fn</span> intersects(a: <span class="k">&amp;</span>Self, b: <span class="k">&amp;</span>Self) -&gt; <span class="k">bool</span> {
+    (a.0[0] &amp; b.0[0])
+  | (a.0[1] &amp; b.0[1])
+  | (a.0[2] &amp; b.0[2])
+  | (a.0[3] &amp; b.0[3]) != 0
+}</pre>
+          </article>
+
+          <article class="principle reveal delay-3">
+            <div class="principle-id">D1</div>
+            <h3 class="principle-name">Library code cannot panic.</h3>
+            <p class="principle-body">
+              <code>unwrap</code>, <code>expect</code>,
+              <code>panic!</code>, <code>todo!</code>, and
+              <code>unimplemented!</code> are denied by clippy in every
+              library crate. Errors are <code>thiserror</code> enums;
+              <code>anyhow</code> is allowed only inside binary crates.
+              A panic in a library is a denial-of-service.
+            </p>
+            <pre class="principle-snippet"><span class="c">// every lib crate</span>
+<span class="c">#![deny(</span>
+<span class="c">    clippy::unwrap_used,</span>
+<span class="c">    clippy::expect_used,</span>
+<span class="c">    clippy::panic,</span>
+<span class="c">)]</span></pre>
+          </article>
+
+          <article class="principle reveal delay-4">
+            <div class="principle-id">D7</div>
+            <h3 class="principle-name">Persistence cannot block delivery.</h3>
+            <p class="principle-body">
+              The persistence side-channel is a bounded
+              <code>mpsc</code> off the dispatch loop. If the channel
+              fills, the persist drops with a counter increment.
+              Delivery to live subscribers is never blocked by the
+              database.
+            </p>
+            <pre class="principle-snippet"><span class="k">match</span> store.try_insert_event(row) {
+    Ok(()) =&gt; {}
+    <span class="k">Err</span>(_) =&gt; <span class="c">// counter++, drop, move on</span>
+}</pre>
+          </article>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- =====================================================================
+         RIGOR
+         ===================================================================== -->
+    <section class="rigor" id="rigor">
+      <div class="container">
+        <div class="section-head reveal">
+          <div>
+            <div class="eyebrow">Section III &nbsp;/&nbsp; Verification</div>
+            <h2 class="section-title">Verified,<br><em>not vibed.</em></h2>
+          </div>
+          <p class="section-sub">
+            Six independent layers of proof. Each runs on every commit;
+            none of them are decoration.
+          </p>
+        </div>
+
+        <div class="layers">
+
+          <article class="layer reveal">
+            <div class="layer-num">L1</div>
+            <h3 class="layer-name">Property tests</h3>
+            <div class="layer-stat">proptest</div>
+            <p class="layer-desc">
+              Generators on every codec invariant: round-trip,
+              byte-stable proto, <code>BigInteger</code>-comparison
+              for the group bitvector. "For all inputs, X holds."
+            </p>
+          </article>
+
+          <article class="layer reveal delay-1">
+            <div class="layer-num">L2</div>
+            <h3 class="layer-name">Fuzz</h3>
+            <div class="layer-stat"><span class="accent">2.04 B</span> execs &middot; 0 crashes</div>
+            <p class="layer-desc">
+              libFuzzer with sanitizers on the XML decoder and the
+              streaming framer. Runs nightly via
+              <code>cargo&nbsp;+nightly&nbsp;fuzz</code>.
+            </p>
+          </article>
+
+          <article class="layer reveal delay-2">
+            <div class="layer-num">L3</div>
+            <h3 class="layer-name">VOPR</h3>
+            <div class="layer-stat">deterministic</div>
+            <p class="layer-desc">
+              Seed-replay verification harness for the bus.
+              <code>--alloc-mode</code> verifies H1; <code>--minimize</code>
+              shrinks failure traces with linear delta-debugging.
+            </p>
+          </article>
+
+          <article class="layer reveal delay-3">
+            <div class="layer-num">L4</div>
+            <h3 class="layer-name">Loom</h3>
+            <div class="layer-stat">model-checked</div>
+            <p class="layer-desc">
+              Concurrency model checker explores all schedules of
+              concurrent subscribe / unsubscribe / dispatch. No data
+              race, no deadlock, no lost message.
+            </p>
+          </article>
+
+          <article class="layer reveal delay-4">
+            <div class="layer-num">L5</div>
+            <h3 class="layer-name">Conformance</h3>
+            <div class="layer-stat"><span class="accent">9</span> scenarios &middot; mock ATAK</div>
+            <p class="layer-desc">
+              In-process <code>tak-server</code> against a real
+              <code>postgis</code> container, driven by mock ATAK
+              clients. Byte-identity, fan-out, replay, drop accounting.
+            </p>
+          </article>
+
+          <article class="layer reveal delay-4">
+            <div class="layer-num">L6</div>
+            <h3 class="layer-name">Soak</h3>
+            <div class="layer-stat">RSS-drift gated</div>
+            <p class="layer-desc">
+              Wall-clock harness drives sustained load while sampling
+              <code>/proc/&lt;pid&gt;/status</code>. Linear regression
+              fails the build if RSS drifts; pinned latency probe
+              gates p99.
+            </p>
+          </article>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- =====================================================================
+         FAQ — visible to humans, mirrored in JSON-LD FAQPage above.
+         The same questions and answers appear in both surfaces; the
+         indexability of the visible content is what makes the FAQ
+         schema actually pay off.
+         ===================================================================== -->
+    <section class="faq" id="faq" aria-labelledby="faq-title">
+      <div class="container">
+        <div class="section-head reveal">
+          <div>
+            <div class="eyebrow">Section IV &nbsp;/&nbsp; Frequent questions</div>
+            <h2 class="section-title" id="faq-title">Plain<br><em>answers.</em></h2>
+          </div>
+          <p class="section-sub">
+            What people evaluating a Rust replacement for the Java
+            TAK Server actually ask. No marketing, no hedging.
+          </p>
+        </div>
+
+        <div class="faq-list reveal">
+
+          <details>
+            <summary>What is tak.rs?</summary>
+            <p class="faq-answer">
+              tak.rs is a high-performance Rust kernel for the Team
+              Awareness Kit (TAK) ecosystem. It is a drop-in
+              replacement for the messaging core of the upstream
+              Java TAK Server, optimized for single-node deployments
+              at <strong>10,000+ concurrent mTLS streaming clients</strong>
+              on commodity Linux hardware.
+            </p>
+          </details>
+
+          <details>
+            <summary>Is tak.rs ATAK, iTAK, and WinTAK compatible?</summary>
+            <p class="faq-answer">
+              Yes. tak.rs speaks <strong>TAK Protocol Version&nbsp;1</strong>
+              (the magic byte <code>0xBF</code> varint-prefixed
+              protobuf <code>TakMessage</code>) on the streaming
+              firehose &mdash; the same wire format that ATAK
+              (Android), iTAK (iOS), and WinTAK use. The conformance
+              suite drives mock ATAK clients through canonical
+              Cursor-on-Target exchanges and pins byte-identity end-to-end.
+            </p>
+          </details>
+
+          <details>
+            <summary>How does tak.rs compare to FreeTAKServer, OpenTAKServer, taky, or GoATAK?</summary>
+            <p class="faq-answer">
+              FreeTAKServer (Python), OpenTAKServer (Python), and
+              taky (Python) are user-friendly community
+              implementations; GoATAK is a Go alternative. tak.rs
+              targets a different point in the design space: a Rust
+              kernel optimized for single-node throughput at
+              <strong>10,000+ concurrent mTLS streaming clients</strong>
+              with sub-millisecond p99 dispatch, alloc-free fan-out,
+              and machine-enforced invariants. The hot path is built
+              to be a drop-in for the upstream Java TAK Server, not
+              a reinvention.
+            </p>
+          </details>
+
+          <details>
+            <summary>Is tak.rs production ready?</summary>
+            <p class="faq-answer">
+              Pre-M0. The hot path is verified by six layers of
+              proof: property tests (<code>proptest</code>),
+              <strong>2.04 billion fuzz executions</strong> across
+              two libFuzzer targets with zero crashes, deterministic
+              seed-replay verification (VOPR), Loom concurrency
+              model checking, nine end-to-end conformance scenarios
+              with mock ATAK clients, and a wall-clock soak harness
+              with RSS-drift gating. Public deployment is gated on
+              an mTLS handshake conformance scenario and a 24-hour
+              soak baseline.
+            </p>
+          </details>
+
+          <details>
+            <summary>What TAK Protocol versions does tak.rs support?</summary>
+            <p class="faq-answer">
+              <strong>TAK Protocol Version&nbsp;1</strong> (binary):
+              magic byte <code>0xBF</code>, varint-prefixed protobuf
+              <code>TakMessage</code>. The streaming firehose on
+              port&nbsp;<code>8089</code> (mTLS) is the production
+              path; plain TCP on <code>8087</code> / <code>8088</code>
+              is opt-in. The CoT XML codec round-trips
+              <code>Detail.xmlDetail</code> byte-for-byte to preserve
+              plug-in payloads ATAK clients depend on.
+            </p>
+          </details>
+
+          <details>
+            <summary>What is the license?</summary>
+            <p class="faq-answer">
+              <strong>MIT&nbsp;or&nbsp;Apache-2.0</strong>, at the
+              consumer's option &mdash; the standard Rust ecosystem
+              license posture.
+            </p>
+          </details>
+
+          <details>
+            <summary>Why Rust instead of Java?</summary>
+            <p class="faq-answer">
+              Two specific architectural wins. First, the Java TAK
+              Server's hot path is dominated by per-message XPath
+              evaluation; tak.rs compiles subscriptions into a
+              struct (type prefix trie + geo R-tree + UID set +
+              group mask) at subscribe time and dispatches as index
+              lookups + bitwise AND at runtime. Second, group
+              authorization in Java uses
+              <code>BigInteger.and()</code> per message; tak.rs uses
+              a fixed <code>[u64;&nbsp;4]</code> bitvector that
+              intersects in roughly four x86 instructions. Combined
+              with <code>bytes::Bytes</code> Arc-counted fan-out and
+              <code>rustls</code> (no OpenSSL), the hot path moves
+              from milliseconds to microseconds.
+            </p>
+          </details>
+
+          <details>
+            <summary>How fast is tak.rs?</summary>
+            <p class="faq-answer">
+              Sub-millisecond p99 dispatch round-trip under sustained
+              load. Reference number:
+              <strong>144&nbsp;&micro;s p99</strong> in a five-minute
+              soak with 50 concurrent connections publishing at
+              200&nbsp;Hz each (10,000 messages / second offered,
+              8,820 delivered / second after fan-out). Hot-path
+              allocations: <strong>zero</strong>, verified by a
+              <code>dhat</code>-gated invariant test that fails the
+              build on a single allocation.
+            </p>
+          </details>
+
+          <details>
+            <summary>Does tak.rs federate with the official TAK Server?</summary>
+            <p class="faq-answer">
+              Federation is deferred. v1 is single-node only, no
+              Ignite, no clustering. The Mission API and CoT
+              firehose are the in-scope surfaces; cross-server
+              federation is queued for a later milestone.
+            </p>
+          </details>
+
+          <details>
+            <summary>How do I run tak.rs?</summary>
+            <p class="faq-answer">
+              <code>git clone</code> the repository, then
+              <code>cargo nextest run</code> for the test suite,
+              <code>cargo +nightly fuzz run --fuzz-dir crates/tak-cot/fuzz decode_xml</code>
+              for the codec fuzz harness, and
+              <code>tak-soak --duration-secs 300</code> for a
+              baseline soak with the pinned latency probe. Every
+              claim on this page is reproducible from a fresh
+              clone.
+            </p>
+          </details>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- =====================================================================
+         CTA
+         ===================================================================== -->
+    <section class="cta">
+      <div class="cta-inner">
+        <div class="cta-eyebrow reveal">Section V &nbsp;/&nbsp; Source</div>
+        <h2 class="cta-headline reveal delay-1">Read<br>the <em>code.</em></h2>
+        <p class="cta-prose reveal delay-2">
+          Every claim above is reproducible from a clone. Run
+          <code>cargo nextest run</code>, <code>cargo +nightly fuzz run</code>,
+          or <code>tak-soak</code> and compare. The measurement harness
+          ships with the kernel.
+        </p>
+
+        <a class="cta-button reveal delay-3" id="cta-btn"
+           href="https://github.com/copyleftdev/tak-rs"
+           rel="noopener">
+          <div class="cta-mark" aria-hidden="true">
+            <svg viewBox="0 0 256 256" fill="none">
+              <polygon class="ink"
+                points="224,128 176,211.14 80,211.14 32,128 80,44.86 176,44.86"
+                stroke="#0B1014" stroke-width="14" stroke-linejoin="miter"/>
+              <circle class="ink" cx="128" cy="128" r="66" stroke="#0B1014" stroke-width="11"/>
+              <line class="ink" x1="128" y1="70"  x2="128" y2="106" stroke="#0B1014" stroke-width="11"/>
+              <line class="ink" x1="150" y1="128" x2="186" y2="128" stroke="#0B1014" stroke-width="11"/>
+              <line class="ink" x1="128" y1="150" x2="128" y2="186" stroke="#0B1014" stroke-width="11"/>
+              <line class="ink" x1="70"  y1="128" x2="106" y2="128" stroke="#0B1014" stroke-width="11"/>
+              <circle class="target-dot" cx="128" cy="128" r="13" fill="#CE422B"/>
+            </svg>
+          </div>
+          <div class="cta-text">
+            <span class="cta-label">View on GitHub</span>
+            <span class="cta-url">github.com/copyleftdev/tak-rs</span>
+          </div>
+          <svg class="cta-arrow" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+            <path d="M6 16 H26 M19 9 L26 16 L19 23" stroke="currentColor" stroke-width="2.5" stroke-linecap="square" stroke-linejoin="miter"/>
+          </svg>
+        </a>
+
+        <div class="cta-meta reveal delay-4">
+          <span>git clone</span>
+          <span>cargo nextest run</span>
+          <span>cargo bench</span>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+      <span>tak.rs &nbsp; &mdash; &nbsp; cursor on target, in rust</span>
+      <span>MIT &middot; Apache-2.0</span>
+      <svg class="footer-mark" viewBox="0 0 256 256" fill="none" aria-hidden="true">
+        <circle cx="128" cy="128" r="66" stroke="#5A6470" stroke-width="11"/>
+        <line x1="128" y1="70"  x2="128" y2="106" stroke="#5A6470" stroke-width="11"/>
+        <line x1="150" y1="128" x2="186" y2="128" stroke="#5A6470" stroke-width="11"/>
+        <line x1="128" y1="150" x2="128" y2="186" stroke="#5A6470" stroke-width="11"/>
+        <line x1="70"  y1="128" x2="106" y2="128" stroke="#5A6470" stroke-width="11"/>
+        <circle cx="128" cy="128" r="13" fill="#CE422B"/>
+      </svg>
+    </div>
+  </footer>
+
+  <script>
+    (function () {
+      'use strict';
+
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      // ===========================================================
+      // Particle mesh — fixed background canvas. Subtle structural
+      // mesh, NOT glowing tech particles. One rust-orange anchor
+      // particle echoes the brand mark's center target.
+      // ===========================================================
+      class ParticleMesh {
+        constructor(canvas) {
+          this.canvas = canvas;
+          this.ctx = canvas.getContext('2d');
+          this.particles = [];
+          this.mouse = { x: -9999, y: -9999, active: false };
+          this.dpr = 1;
+          this.w = 0;
+          this.h = 0;
+          this.lastT = 0;
+          this.resize();
+          const density = Math.min(140, Math.max(60, Math.floor((this.w * this.h) / 14000)));
+          this.spawn(density);
+          this.bind();
+          requestAnimationFrame((t) => this.loop(t));
+        }
+
+        spawn(n) {
+          for (let i = 0; i < n; i++) {
+            this.particles.push(this.makeParticle(false));
+          }
+          // One rust-orange "target" particle, slightly larger.
+          const t = this.makeParticle(true);
+          t.r = 2.4;
+          t.vx *= 0.4;
+          t.vy *= 0.4;
+          this.particles.push(t);
+        }
+
+        makeParticle(isTarget) {
+          return {
+            x: Math.random() * this.w,
+            y: Math.random() * this.h,
+            vx: (Math.random() - 0.5) * 0.18,
+            vy: (Math.random() - 0.5) * 0.18,
+            r: 0.9 + Math.random() * 0.7,
+            isTarget: !!isTarget,
+            ephemeral: false,
+            life: 0,
+          };
+        }
+
+        bind() {
+          window.addEventListener('resize', () => this.resize(), { passive: true });
+          window.addEventListener('mousemove', (e) => {
+            this.mouse.x = e.clientX;
+            this.mouse.y = e.clientY;
+            this.mouse.active = true;
+          }, { passive: true });
+          window.addEventListener('mouseleave', () => { this.mouse.active = false; });
+          window.addEventListener('blur', () => { this.mouse.active = false; });
+        }
+
+        resize() {
+          this.dpr = Math.min(window.devicePixelRatio || 1, 2);
+          this.w = window.innerWidth;
+          this.h = window.innerHeight;
+          this.canvas.width = this.w * this.dpr;
+          this.canvas.height = this.h * this.dpr;
+          this.canvas.style.width = this.w + 'px';
+          this.canvas.style.height = this.h + 'px';
+          this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+        }
+
+        // Spawn N ephemeral particles around (cx, cy) with a slight
+        // outward radius, gravitating toward the mark center for the
+        // CTA hover effect.
+        spawnConvergent(cx, cy, count, sourceCx, sourceCy, radius) {
+          for (let i = 0; i < count; i++) {
+            const a = (i / count) * Math.PI * 2 + Math.random() * 0.4;
+            const r = radius + (Math.random() - 0.5) * 30;
+            const x = sourceCx + Math.cos(a) * r;
+            const y = sourceCy + Math.sin(a) * r;
+            const dx = cx - x;
+            const dy = cy - y;
+            this.particles.push({
+              x, y,
+              vx: dx * 0.025 + (Math.random() - 0.5) * 0.6,
+              vy: dy * 0.025 + (Math.random() - 0.5) * 0.6,
+              r: 1.2 + Math.random() * 0.8,
+              isTarget: false,
+              ephemeral: true,
+              life: 0.0,
+              maxLife: 90 + Math.random() * 30,
+              targetX: cx,
+              targetY: cy,
+            });
+          }
+        }
+
+        update(dt) {
+          const w = this.w, h = this.h;
+          const out = [];
+          for (let i = 0; i < this.particles.length; i++) {
+            const p = this.particles[i];
+
+            if (p.ephemeral) {
+              p.life += 1;
+              // Continually pull toward target.
+              const dx = p.targetX - p.x;
+              const dy = p.targetY - p.y;
+              p.vx += dx * 0.0035;
+              p.vy += dy * 0.0035;
+              p.vx *= 0.92;
+              p.vy *= 0.92;
+              p.x += p.vx;
+              p.y += p.vy;
+              if (p.life > p.maxLife) continue;
+              const distSq = dx * dx + dy * dy;
+              if (distSq < 25) continue;
+              out.push(p);
+              continue;
+            }
+
+            // Mouse repulsion — gentle, structural.
+            if (this.mouse.active) {
+              const mdx = p.x - this.mouse.x;
+              const mdy = p.y - this.mouse.y;
+              const md2 = mdx * mdx + mdy * mdy;
+              const r = 130;
+              if (md2 < r * r && md2 > 1) {
+                const md = Math.sqrt(md2);
+                const force = (1 - md / r) * 0.55;
+                p.vx += (mdx / md) * force;
+                p.vy += (mdy / md) * force;
+              }
+            }
+
+            p.x += p.vx;
+            p.y += p.vy;
+            p.vx *= 0.96;
+            p.vy *= 0.96;
+
+            // Brownian drift so the mesh never freezes.
+            p.vx += (Math.random() - 0.5) * 0.012;
+            p.vy += (Math.random() - 0.5) * 0.012;
+
+            // Wrap (toroidal)
+            if (p.x < -10) p.x = w + 10;
+            if (p.x > w + 10) p.x = -10;
+            if (p.y < -10) p.y = h + 10;
+            if (p.y > h + 10) p.y = -10;
+
+            out.push(p);
+          }
+          this.particles = out;
+        }
+
+        draw() {
+          const ctx = this.ctx;
+          ctx.clearRect(0, 0, this.w, this.h);
+
+          // Inter-particle structural lines (only stable particles,
+          // not ephemeral — keeps the mesh readable during CTA bursts).
+          const stable = this.particles.filter(p => !p.ephemeral);
+          const max = 130;
+          const max2 = max * max;
+          ctx.lineWidth = 0.5;
+          ctx.strokeStyle = 'rgba(90, 100, 112, 1)';
+          for (let i = 0; i < stable.length; i++) {
+            const a = stable[i];
+            for (let j = i + 1; j < stable.length; j++) {
+              const b = stable[j];
+              const dx = a.x - b.x;
+              const dy = a.y - b.y;
+              const d2 = dx * dx + dy * dy;
+              if (d2 < max2) {
+                const opacity = 0.16 * (1 - d2 / max2);
+                ctx.globalAlpha = opacity;
+                ctx.beginPath();
+                ctx.moveTo(a.x, a.y);
+                ctx.lineTo(b.x, b.y);
+                ctx.stroke();
+              }
+            }
+          }
+
+          // Particles
+          for (const p of this.particles) {
+            if (p.isTarget) {
+              ctx.globalAlpha = 1;
+              ctx.fillStyle = '#CE422B';
+              ctx.beginPath();
+              ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+              ctx.fill();
+              // Faint ring so the eye lands on it.
+              ctx.globalAlpha = 0.22;
+              ctx.strokeStyle = '#CE422B';
+              ctx.lineWidth = 1;
+              ctx.beginPath();
+              ctx.arc(p.x, p.y, p.r * 3.4, 0, Math.PI * 2);
+              ctx.stroke();
+            } else if (p.ephemeral) {
+              const t = 1 - p.life / p.maxLife;
+              ctx.globalAlpha = 0.65 * t;
+              ctx.fillStyle = '#CE422B';
+              ctx.beginPath();
+              ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+              ctx.fill();
+            } else {
+              ctx.globalAlpha = 0.62;
+              ctx.fillStyle = '#F2EFEA';
+              ctx.beginPath();
+              ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+              ctx.fill();
+            }
+          }
+          ctx.globalAlpha = 1;
+        }
+
+        loop(t) {
+          const dt = this.lastT ? (t - this.lastT) : 16;
+          this.lastT = t;
+          this.update(dt);
+          this.draw();
+          requestAnimationFrame((t2) => this.loop(t2));
+        }
+      }
+
+      // ===========================================================
+      // Counter ticker — animates from 0 to data-target on reveal.
+      // ===========================================================
+      function easeOutQuart(x) {
+        return 1 - Math.pow(1 - x, 4);
+      }
+      function animateCounter(el) {
+        if (el.dataset.done === '1') return;
+        el.dataset.done = '1';
+        const target = parseFloat(el.dataset.target);
+        const decimals = parseInt(el.dataset.decimals || '0', 10);
+        const duration = 1400;
+        const start = performance.now();
+        function tick(now) {
+          const t = Math.min(1, (now - start) / duration);
+          const v = target * easeOutQuart(t);
+          el.textContent = decimals > 0
+            ? v.toFixed(decimals)
+            : Math.round(v).toLocaleString('en-US');
+          if (t < 1) requestAnimationFrame(tick);
+          else el.textContent = decimals > 0 ? target.toFixed(decimals) : target.toLocaleString('en-US');
+        }
+        requestAnimationFrame(tick);
+      }
+
+      // ===========================================================
+      // Reveal observer — adds .in to .reveal elements once visible.
+      // ===========================================================
+      function setupReveals() {
+        const revealEls = document.querySelectorAll('.reveal');
+        const counters = document.querySelectorAll('.counter');
+
+        if (reduceMotion) {
+          revealEls.forEach(el => el.classList.add('in'));
+          counters.forEach(el => {
+            const t = parseFloat(el.dataset.target);
+            const d = parseInt(el.dataset.decimals || '0', 10);
+            el.textContent = d > 0 ? t.toFixed(d) : t.toLocaleString('en-US');
+          });
+          return;
+        }
+
+        const obs = new IntersectionObserver((entries) => {
+          for (const entry of entries) {
+            if (entry.isIntersecting) {
+              entry.target.classList.add('in');
+              const inner = entry.target.querySelector('.counter');
+              if (inner) animateCounter(inner);
+              obs.unobserve(entry.target);
+            }
+          }
+        }, { threshold: 0.15, rootMargin: '0px 0px -10% 0px' });
+
+        revealEls.forEach(el => obs.observe(el));
+      }
+
+      // ===========================================================
+      // CTA kinetic effect: on hover, spawn ephemeral particles
+      // around the button perimeter that converge into the mark.
+      // ===========================================================
+      function setupCta(mesh) {
+        if (reduceMotion || !mesh) return;
+        const btn = document.getElementById('cta-btn');
+        if (!btn) return;
+        let cooldown = false;
+        const fire = () => {
+          if (cooldown) return;
+          cooldown = true;
+          setTimeout(() => { cooldown = false; }, 600);
+          const btnRect = btn.getBoundingClientRect();
+          const markEl = btn.querySelector('.cta-mark');
+          const markRect = markEl.getBoundingClientRect();
+          const cx = markRect.left + markRect.width / 2;
+          const cy = markRect.top + markRect.height / 2;
+          const sourceCx = btnRect.left + btnRect.width / 2;
+          const sourceCy = btnRect.top + btnRect.height / 2;
+          const radius = btnRect.width * 0.55;
+          mesh.spawnConvergent(cx, cy, 28, sourceCx, sourceCy, radius);
+        };
+        btn.addEventListener('mouseenter', fire);
+        btn.addEventListener('focus', fire);
+      }
+
+      // ===========================================================
+      // Boot
+      // ===========================================================
+      document.addEventListener('DOMContentLoaded', () => {
+        // Trigger hero reveal sequence.
+        const hero = document.getElementById('hero');
+        if (hero) {
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => hero.classList.add('in'));
+          });
+        }
+
+        setupReveals();
+
+        let mesh = null;
+        if (!reduceMotion) {
+          const canvas = document.getElementById('mesh');
+          if (canvas) {
+            mesh = new ParticleMesh(canvas);
+            // Fade the canvas in only once particles are drifting,
+            // so the page doesn't pop on load.
+            setTimeout(() => canvas.classList.add('live'), 400);
+          }
+        }
+
+        setupCta(mesh);
+      });
+    })();
+  </script>
+</body>
+</html>

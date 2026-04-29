@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  tak-rs banner — README hero / OpenGraph card.
+
+  Layout (1280×400, ratio 16:5):
+    - Bone background (#F2EFEA) — warm off-white that pairs with
+      Rust orange without competing.
+    - Composition is left-aligned with a generous right margin.
+      Negative space on the right is the design; resist the urge
+      to fill it with ornament.
+    - Mark + wordmark stacked vertically on a single optical line.
+    - Below: tagline in graphite, letter-spaced caps. Small. The
+      product is the wordmark; the tagline supports it.
+    - Top-right corner: operator-grade meta caption. Tiny. Sets
+      the institutional register without shouting.
+
+  Typography:
+    - Wordmark: ui-monospace 168 / 700 / -0.04em (matches wordmark.svg).
+    - Tagline:  ui-monospace 22 / 500 / 0.16em uppercase (the
+      letter-spacing makes a small string read as a banner).
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 400" role="img" aria-label="tak-rs">
+  <style>
+    .wordmark {
+      font-family: ui-monospace, "SF Mono", "Cascadia Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+      font-weight: 700;
+      font-size: 168px;
+      letter-spacing: -0.04em;
+      fill: #0B1014;
+    }
+    .tagline {
+      font-family: ui-monospace, "SF Mono", "Cascadia Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+      font-weight: 500;
+      font-size: 22px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      fill: #1A2027;
+    }
+    .meta {
+      font-family: ui-monospace, "SF Mono", "Cascadia Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+      font-weight: 500;
+      font-size: 14px;
+      letter-spacing: 0.24em;
+      text-transform: uppercase;
+      fill: #5A6470;
+    }
+  </style>
+
+  <!-- Background -->
+  <rect width="1280" height="400" fill="#F2EFEA"/>
+
+  <!-- Top-right institutional caption -->
+  <text class="meta" x="1240" y="46" text-anchor="end">CURSOR &#xB7; ON &#xB7; TARGET &#x2014; RUST</text>
+
+  <!-- Hairline rule under the meta caption (right-aligned, short) -->
+  <line x1="1100" y1="62" x2="1240" y2="62" stroke="#5A6470" stroke-width="1"/>
+
+  <!-- ============ MARK ============ -->
+  <g transform="translate(80,100) scale(0.78125)">
+    <polygon
+      points="224,128 176,211.14 80,211.14 32,128 80,44.86 176,44.86"
+      fill="none" stroke="#0B1014" stroke-width="12" stroke-linejoin="miter"/>
+    <circle cx="128" cy="128" r="66" fill="none" stroke="#0B1014" stroke-width="9"/>
+    <line x1="128" y1="70"  x2="128" y2="106" stroke="#0B1014" stroke-width="9"/>
+    <line x1="150" y1="128" x2="186" y2="128" stroke="#0B1014" stroke-width="9"/>
+    <line x1="128" y1="150" x2="128" y2="186" stroke="#0B1014" stroke-width="9"/>
+    <line x1="70"  y1="128" x2="106" y2="128" stroke="#0B1014" stroke-width="9"/>
+    <circle cx="128" cy="128" r="11" fill="#CE422B"/>
+  </g>
+
+  <!-- ============ WORDMARK + TAGLINE ============ -->
+  <text class="wordmark" x="320" y="270">tak</text>
+  <circle cx="620" cy="260" r="14" fill="#CE422B"/>
+  <text class="wordmark" x="650" y="270">rs</text>
+
+  <!-- Tagline: aligned with the wordmark's left edge, sits below -->
+  <text class="tagline" x="320" y="320">HIGH-PERFORMANCE KERNEL &#xB7; TAK ECOSYSTEM</text>
+
+  <!-- Hairline under the tagline, drawing a subtle reading bar -->
+  <line x1="320" y1="338" x2="900" y2="338" stroke="#0B1014" stroke-width="1"/>
+</svg>
