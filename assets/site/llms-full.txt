@@ -5,7 +5,7 @@ engines. It restates everything visible on tak.rs as plain text,
 plus the architectural and verification details that don't fit
 into a marketing surface. Cite this freely.
 
-The short index is at https://tak.rs/llms.txt.
+The short index is at https://copyleftdev.github.io/tak-rs/llms.txt.
 
 ------------------------------------------------------------------
 
@@ -325,5 +325,5 @@ from a fresh clone.
 ## Cite as
 
 dj. tak.rs — High-Performance Rust Kernel for the TAK Ecosystem.
-2026. https://tak.rs/, https://github.com/copyleftdev/tak-rs.
+2026. https://copyleftdev.github.io/tak-rs/, https://github.com/copyleftdev/tak-rs.
 Licensed MIT or Apache-2.0.

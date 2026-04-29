@@ -2,6 +2,6 @@
 Contact: mailto:dj@codetestcode.io
 Expires: 2027-04-29T00:00:00.000Z
 Preferred-Languages: en
-Canonical: https://tak.rs/.well-known/security.txt
+Canonical: https://copyleftdev.github.io/tak-rs/.well-known/security.txt
 Acknowledgments: https://github.com/copyleftdev/tak-rs/security/advisories
 Policy: https://github.com/copyleftdev/tak-rs/security/policy

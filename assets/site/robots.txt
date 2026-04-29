@@ -7,7 +7,7 @@ Disallow: /llms-full.txt
 # llms-full.txt is the long-form LLM ingestion target, not for SERPs.
 # llms.txt is the short index — fine to crawl.
 
-Sitemap: https://tak.rs/sitemap.xml
+Sitemap: https://copyleftdev.github.io/tak-rs/sitemap.xml
 
 # -----------------------------------------------------------------
 # Modern AI crawlers — explicit allow. tak.rs is open source and
