@@ -6,7 +6,7 @@ Please report security issues **privately**. Do not open a public GitHub
 issue for a suspected vulnerability.
 
 - **GitHub Security Advisories** (preferred):
-  <https://github.com/codetestcode/tak-rs/security/advisories/new>
+  <https://github.com/copyleftdev/tak-rs/security/advisories/new>
 - **Email:** dj@codetestcode.io
 - **Machine-readable contact:** [.well-known/security.txt](assets/site/.well-known/security.txt)
   (RFC 9116)
@@ -51,5 +51,5 @@ this section will pin the supported branches.
 ## Acknowledgments
 
 Coordinated reports are credited at
-<https://github.com/codetestcode/tak-rs/security/advisories>
+<https://github.com/copyleftdev/tak-rs/security/advisories>
 unless the reporter requests otherwise.

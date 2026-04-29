@@ -28,7 +28,7 @@ preamble and Mesh SA paths.
 tak.rs is licensed under MIT or Apache-2.0 at the consumer's
 option, the conventional Rust ecosystem dual-license posture.
 
-The source is at https://github.com/codetestcode/tak-rs.
+The source is at https://github.com/copyleftdev/tak-rs.
 
 ------------------------------------------------------------------
 
@@ -325,5 +325,5 @@ from a fresh clone.
 ## Cite as
 
 dj. tak.rs — High-Performance Rust Kernel for the TAK Ecosystem.
-2026. https://tak.rs/, https://github.com/codetestcode/tak-rs.
+2026. https://tak.rs/, https://github.com/copyleftdev/tak-rs.
 Licensed MIT or Apache-2.0.

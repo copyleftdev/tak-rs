@@ -22,15 +22,15 @@ Rust kernel designed to be a wire-compatible drop-in for that server's hot path
 
 ## Source
 
-- [GitHub repository](https://github.com/codetestcode/tak-rs)
-- [License (MIT)](https://github.com/codetestcode/tak-rs/blob/main/LICENSE-MIT)
-- [License (Apache-2.0)](https://github.com/codetestcode/tak-rs/blob/main/LICENSE-APACHE)
+- [GitHub repository](https://github.com/copyleftdev/tak-rs)
+- [License (MIT)](https://github.com/copyleftdev/tak-rs/blob/main/LICENSE-MIT)
+- [License (Apache-2.0)](https://github.com/copyleftdev/tak-rs/blob/main/LICENSE-APACHE)
 
 ## Architecture
 
-- [Architecture overview](https://github.com/codetestcode/tak-rs/blob/main/docs/architecture.md): full design, Java to Rust component map, hot-path walkthrough.
-- [Invariants](https://github.com/codetestcode/tak-rs/blob/main/docs/invariants.md): the non-negotiable correctness, hot-path, and discipline rules. Machine-enforced where possible.
-- [Crate layout](https://github.com/codetestcode/tak-rs#layout): tak-cot, tak-proto, tak-net, tak-bus, tak-store, tak-mission, tak-server, taktool.
+- [Architecture overview](https://github.com/copyleftdev/tak-rs/blob/main/docs/architecture.md): full design, Java to Rust component map, hot-path walkthrough.
+- [Invariants](https://github.com/copyleftdev/tak-rs/blob/main/docs/invariants.md): the non-negotiable correctness, hot-path, and discipline rules. Machine-enforced where possible.
+- [Crate layout](https://github.com/copyleftdev/tak-rs#layout): tak-cot, tak-proto, tak-net, tak-bus, tak-store, tak-mission, tak-server, taktool.
 
 ## Verification harnesses
 

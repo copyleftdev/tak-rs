@@ -12,7 +12,7 @@ edition      = "2024"
 rust-version = "1.85"
 license      = "MIT OR Apache-2.0"
 authors      = ["dj <dj@codetestcode.io>"]
-repository   = "https://github.com/codetestcode/tak-rs"
+repository   = "https://github.com/copyleftdev/tak-rs"
 
 # ---------------------------------------------------------------------------
 # Centralized dependency versions.

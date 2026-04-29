@@ -32,4 +32,4 @@
                 particle-mesh canvas.
 
 # REPO
-  https://github.com/codetestcode/tak-rs
+  https://github.com/copyleftdev/tak-rs
