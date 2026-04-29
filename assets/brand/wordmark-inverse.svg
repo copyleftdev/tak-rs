@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  tak-rs wordmark — inverse variant for dark backgrounds.
+
+  Bone (#F2EFEA) replaces ink graphite for the structural strokes
+  and the type. The Rust-orange center target and period disc are
+  preserved — the asymmetric statement holds across both surfaces.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 260" role="img" aria-label="tak-rs">
+  <style>
+    .wordmark {
+      font-family: ui-monospace, "SF Mono", "Cascadia Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+      font-weight: 700;
+      font-size: 168px;
+      letter-spacing: -0.04em;
+      fill: #F2EFEA;
+    }
+  </style>
+
+  <g transform="translate(30,30) scale(0.78125)">
+    <polygon
+      points="224,128 176,211.14 80,211.14 32,128 80,44.86 176,44.86"
+      fill="none" stroke="#F2EFEA" stroke-width="12" stroke-linejoin="miter"/>
+    <circle cx="128" cy="128" r="66" fill="none" stroke="#F2EFEA" stroke-width="9"/>
+    <line x1="128" y1="70"  x2="128" y2="106" stroke="#F2EFEA" stroke-width="9"/>
+    <line x1="150" y1="128" x2="186" y2="128" stroke="#F2EFEA" stroke-width="9"/>
+    <line x1="128" y1="150" x2="128" y2="186" stroke="#F2EFEA" stroke-width="9"/>
+    <line x1="70"  y1="128" x2="106" y2="128" stroke="#F2EFEA" stroke-width="9"/>
+    <circle cx="128" cy="128" r="11" fill="#CE422B"/>
+  </g>
+
+  <text class="wordmark" x="265" y="200">tak</text>
+  <circle cx="588" cy="195" r="14" fill="#CE422B"/>
+  <text class="wordmark" x="615" y="200">rs</text>
+</svg>

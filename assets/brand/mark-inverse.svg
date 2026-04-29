@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  tak-rs mark — inverse variant for dark backgrounds.
+
+  Same geometry as mark.svg; ink graphite is replaced with bone
+  (#F2EFEA). The Rust-orange center target is preserved — the
+  single point of contrast holds across both light and dark
+  surfaces, which is the test of a real mark.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="none" role="img" aria-label="tak-rs">
+  <polygon
+    points="224,128 176,211.14 80,211.14 32,128 80,44.86 176,44.86"
+    stroke="#F2EFEA" stroke-width="12" stroke-linejoin="miter"/>
+
+  <circle cx="128" cy="128" r="66" stroke="#F2EFEA" stroke-width="9"/>
+
+  <line x1="128" y1="70"  x2="128" y2="106" stroke="#F2EFEA" stroke-width="9"/>
+  <line x1="150" y1="128" x2="186" y2="128" stroke="#F2EFEA" stroke-width="9"/>
+  <line x1="128" y1="150" x2="128" y2="186" stroke="#F2EFEA" stroke-width="9"/>
+  <line x1="70"  y1="128" x2="106" y2="128" stroke="#F2EFEA" stroke-width="9"/>
+
+  <circle cx="128" cy="128" r="11" fill="#CE422B"/>
+</svg>

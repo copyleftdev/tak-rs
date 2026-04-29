@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/brand/banner.svg" alt="tak-rs" width="100%"/>
+</p>
+
 # tak-rs
 
 A high-performance Rust kernel for the [TAK (Team Awareness Kit)](https://tak.gov)
