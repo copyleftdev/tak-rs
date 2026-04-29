@@ -58,6 +58,7 @@
 )]
 
 mod analyze;
+mod latency;
 mod metrics;
 mod sampler;
 mod server;
@@ -127,6 +128,25 @@ struct Args {
     /// Metrics port (corresponds to tak-server --listen-metrics).
     #[arg(long, env = "SOAK_METRICS_PORT", default_value_t = 19091)]
     metrics_port: u16,
+
+    /// Per-second send rate for the pinned latency probe.
+    /// Stays low so the probe's own load doesn't perturb the
+    /// measurement (per-sub mpsc is 1024 deep; at 20 Hz the
+    /// in-flight queue is tiny even under heavy fan-out).
+    #[arg(long, env = "SOAK_LATENCY_RATE", default_value_t = 20)]
+    latency_rate: u32,
+
+    /// Skip the pinned latency probe. Useful when the soak runs
+    /// in an environment where one extra TCP connection would
+    /// distort the measurement (rare).
+    #[arg(long, env = "SOAK_NO_LATENCY", default_value_t = false)]
+    no_latency: bool,
+
+    /// Fail the soak if final p99 dispatch RTT exceeds this many
+    /// microseconds. Default 50 ms — generous, picks up only
+    /// the cliff cases where dispatch is unhealthy.
+    #[arg(long, env = "SOAK_MAX_P99_US", default_value_t = 50_000)]
+    max_p99_us: u64,
 }
 
 #[tokio::main(flavor = "multi_thread")]
@@ -231,6 +251,34 @@ async fn main() -> Result<()> {
         args.conns as u32 * args.rate
     );
 
+    // Pin a latency probe alongside loadgen. It spans the same
+    // window as the soak so its percentile is the soak's number,
+    // not a snapshot.
+    let latency_handle = if args.no_latency {
+        info!("latency probe disabled via --no-latency");
+        None
+    } else {
+        match latency::spawn(
+            &args.taktool_bin,
+            &target,
+            args.latency_rate,
+            args.duration_secs,
+        ) {
+            Ok((child, log_path)) => {
+                info!(
+                    rate = args.latency_rate,
+                    log = %log_path.display(),
+                    "latency probe pinned"
+                );
+                Some((child, log_path))
+            }
+            Err(e) => {
+                warn!(error = ?e, "failed to spawn latency probe; continuing without it");
+                None
+            }
+        }
+    };
+
     // Sample loop runs for the soak duration.
     let samples = sampler::run(
         server_pid,
@@ -244,6 +292,32 @@ async fn main() -> Result<()> {
         "sampling complete; tearing down"
     );
 
+    // Drain the latency probe before tearing down the server —
+    // otherwise the probe's final write_all hits a closed peer
+    // and the JSON line never lands on disk. It naturally
+    // finishes within `duration + 5s`; if it's stuck longer we
+    // kill and parse what's there.
+    let latency_summary = if let Some((mut child, log_path)) = latency_handle {
+        match tokio::time::timeout(Duration::from_secs(15), child.wait()).await {
+            Ok(Ok(_status)) => {}
+            Ok(Err(e)) => warn!(error = ?e, "latency probe wait failed"),
+            Err(_) => {
+                warn!("latency probe didn't exit on time; killing");
+                let _ = child.kill().await;
+                let _ = child.wait().await;
+            }
+        }
+        match latency::parse_summary(&log_path) {
+            Ok(s) => Some(s),
+            Err(e) => {
+                warn!(error = ?e, "latency probe summary parse failed");
+                None
+            }
+        }
+    } else {
+        None
+    };
+
     // Cleanup. Best-effort kill; if these fail the testcontainer
     // teardown still runs on _pg_handle drop.
     let _ = loadgen_child.kill().await;
@@ -252,7 +326,8 @@ async fn main() -> Result<()> {
     let _ = server_child.wait().await;
 
     // Analyze + report.
-    let report = analyze::analyze(&samples, args.max_rss_drift_kb_per_min);
+    let mut report = analyze::analyze(&samples, args.max_rss_drift_kb_per_min);
+    analyze::attach_latency(&mut report, latency_summary, args.max_p99_us);
     analyze::print_report(&report);
 
     if let Some(path) = &args.out_csv {

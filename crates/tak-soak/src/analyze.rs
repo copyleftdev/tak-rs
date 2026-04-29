@@ -9,6 +9,7 @@
 //! loadgen or server died mid-run; ALSO fail if it dropped to
 //! ~0 from a non-trivial earlier rate).
 
+use crate::latency::LatencySummary;
 use crate::sampler::Sample;
 
 #[derive(Debug)]
@@ -26,8 +27,38 @@ pub struct Report {
     pub dropped_full_total: u64,
     pub persisted_total: u64,
     pub persistence_dropped_total: u64,
+    pub latency: Option<LatencySummary>,
+    pub max_p99_us_threshold: u64,
     pub failed: bool,
     pub failure_reasons: Vec<String>,
+}
+
+/// Attach the pinned-probe summary to a soak report and gate on
+/// `max_p99_us_threshold`. The threshold is hit only when the
+/// probe actually produced samples; an absent probe doesn't fail
+/// the soak (the warning already surfaced in `main`).
+pub fn attach_latency(
+    report: &mut Report,
+    latency: Option<LatencySummary>,
+    max_p99_us_threshold: u64,
+) {
+    report.latency = latency;
+    report.max_p99_us_threshold = max_p99_us_threshold;
+    if let Some(s) = latency {
+        if s.samples == 0 {
+            report.failed = true;
+            report.failure_reasons.push(
+                "latency probe finished with zero samples — peer closed early or fan-out broken"
+                    .to_owned(),
+            );
+        } else if s.p99_us > max_p99_us_threshold {
+            report.failed = true;
+            report.failure_reasons.push(format!(
+                "latency p99 {} µs exceeds threshold {} µs (max {} µs)",
+                s.p99_us, max_p99_us_threshold, s.max_us
+            ));
+        }
+    }
 }
 
 pub fn analyze(samples: &[Sample], rss_drift_threshold: f64) -> Report {
@@ -45,6 +76,8 @@ pub fn analyze(samples: &[Sample], rss_drift_threshold: f64) -> Report {
         dropped_full_total: 0,
         persisted_total: 0,
         persistence_dropped_total: 0,
+        latency: None,
+        max_p99_us_threshold: 0,
         failed: false,
         failure_reasons: Vec::new(),
     };
@@ -163,6 +196,21 @@ pub fn print_report(r: &Report) {
     println!("dropped_full_total   {}", r.dropped_full_total);
     println!("persisted_total      {}", r.persisted_total);
     println!("persist_dropped_tot  {}", r.persistence_dropped_total);
+    if let Some(s) = &r.latency {
+        println!("--- pinned latency probe ---");
+        println!("samples              {}", s.samples);
+        println!("sends                {}", s.sends);
+        println!("recvs                {}", s.recvs);
+        println!("p50_us               {}", s.p50_us);
+        println!("p95_us               {}", s.p95_us);
+        println!("p99_us               {}", s.p99_us);
+        println!("p999_us              {}", s.p999_us);
+        println!("max_us               {}", s.max_us);
+        println!("p99_threshold_us     {}", r.max_p99_us_threshold);
+    } else {
+        println!("--- pinned latency probe ---");
+        println!("(disabled or unavailable)");
+    }
     println!(
         "verdict              {}",
         if r.failed { "FAIL" } else { "PASS" }
