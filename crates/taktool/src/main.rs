@@ -9,6 +9,7 @@
     clippy::print_stderr
 )]
 
+mod latency;
 mod loadgen;
 mod loadgen_quic;
 
@@ -31,6 +32,12 @@ enum Cmd {
 
     /// Generate synthetic firehose load against any TAK server.
     Loadgen(loadgen::LoadgenArgs),
+
+    /// Single-connection RTT probe: send PLIs, read your own
+    /// frames back via the wildcard subscription, report
+    /// p50/p95/p99/p99.9 dispatch latency. Run alongside loadgen
+    /// during a soak to measure latency under load.
+    Latency(latency::LatencyArgs),
 }
 
 fn main() -> anyhow::Result<()> {
@@ -45,7 +52,16 @@ fn main() -> anyhow::Result<()> {
             Ok(())
         }
         Cmd::Loadgen(args) => run_loadgen(args),
+        Cmd::Latency(args) => run_latency(args),
     }
+}
+
+fn run_latency(args: latency::LatencyArgs) -> anyhow::Result<()> {
+    init_loadgen_tracing();
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()?;
+    rt.block_on(latency::run(args))
 }
 
 #[cfg(target_os = "linux")]

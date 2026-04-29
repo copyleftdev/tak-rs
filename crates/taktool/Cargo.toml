@@ -14,6 +14,7 @@ anyhow             .workspace = true
 tracing            .workspace = true
 tracing-subscriber .workspace = true
 prost              .workspace = true
+bytes              .workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "net", "time", "sync", "io-util", "signal"] }
 tak-cot            .workspace = true
 

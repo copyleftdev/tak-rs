@@ -4617,6 +4617,7 @@ name = "taktool"
 version = "0.0.1"
 dependencies = [
  "anyhow",
+ "bytes",
  "clap",
  "prost",
  "quinn",
