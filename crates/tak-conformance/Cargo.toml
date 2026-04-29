@@ -33,5 +33,8 @@ tokio-util  .workspace = true
 # regular dep not a dev-dep.
 testcontainers .workspace = true
 
+[dev-dependencies]
+tracing-subscriber .workspace = true
+
 [lints]
 workspace = true
