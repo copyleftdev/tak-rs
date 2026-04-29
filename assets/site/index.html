@@ -1,20 +1,96 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" prefix="og: https://ogp.me/ns#">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>tak.rs &mdash; High-Performance Kernel for the TAK Ecosystem</title>
-  <meta name="description" content="A drop-in Rust kernel for the messaging core of the upstream Java TAK Server. Sub-millisecond p99 dispatch, alloc-free hot path, six layers of verification." />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
 
-  <link rel="icon" href="../brand/favicon.svg" type="image/svg+xml" />
+  <!-- =========================================================================
+       Primary metadata. Title and description carry the highest-intent
+       keywords from the TAK / ATAK / Cursor-on-Target lexicon: "TAK
+       Server alternative," "Java TAK Server replacement," "Rust TAK,"
+       "self-hosted TAK," "Cursor on Target." Title is 70 chars (under
+       the 580 px Google SERP cap); description is 155 chars (under
+       the SERP truncation point on most viewports).
+       ========================================================================= -->
+  <title>tak.rs &mdash; Rust TAK Server &middot; Drop-in for the Java TAK Server &middot; ATAK / CoT</title>
+  <meta name="description" content="tak.rs is a high-performance Rust kernel for the TAK ecosystem &mdash; a drop-in Cursor-on-Target / mTLS replacement for the Java TAK Server. ATAK, iTAK, WinTAK." />
+  <meta name="keywords" content="TAK server, Team Awareness Kit, Tactical Assault Kit, ATAK, iTAK, WinTAK, CivTAK, Cursor on Target, CoT, CoT router, situational awareness, blue force tracking, BFT, PLI, Marti API, Mission API, mTLS, streaming CoT, TAK Protocol Version 1, protobuf, Rust, tokio, high performance, C4ISR, MANET, federation, FreeTAKServer alternative, OpenTAKServer alternative, taky alternative, GoATAK alternative, Java TAK Server replacement, self-hosted TAK, open source TAK server" />
 
-  <meta property="og:title" content="tak.rs" />
-  <meta property="og:description" content="High-performance Rust kernel for the TAK ecosystem." />
-  <meta property="og:image" content="../brand/banner.svg" />
+  <meta name="author" content="dj &lt;dj@codetestcode.io&gt;" />
+  <meta name="creator" content="dj" />
+  <meta name="publisher" content="tak.rs" />
+  <meta name="application-name" content="tak.rs" />
+  <meta name="generator" content="hand-authored" />
+  <meta name="rating" content="general" />
+  <meta name="referrer" content="strict-origin-when-cross-origin" />
+  <meta name="format-detection" content="telephone=no" />
+  <meta name="color-scheme" content="dark" />
+  <meta name="theme-color" content="#0B1014" />
+  <meta name="msapplication-TileColor" content="#0B1014" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="tak.rs" />
+  <meta name="mobile-web-app-capable" content="yes" />
+
+  <!-- Crawlers: indexable, full snippet length, large image preview,
+       no translate (mil-spec lexicon would be lossy in MT). -->
+  <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
+  <meta name="googlebot" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
+  <meta name="bingbot" content="index, follow" />
+  <meta name="google" content="notranslate" />
+
+  <!-- Canonical. Update if deployed elsewhere. -->
+  <link rel="canonical" href="https://tak.rs/" />
+
+  <!-- =========================================================================
+       OpenGraph / Twitter / oEmbed
+       ========================================================================= -->
   <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="tak.rs" />
+  <meta property="og:title" content="tak.rs &mdash; Rust TAK Server &middot; Drop-in for the Java TAK Server" />
+  <meta property="og:description" content="High-performance Rust kernel for the TAK ecosystem. Drop-in Cursor-on-Target / mTLS replacement for the Java TAK Server. ATAK, iTAK, WinTAK." />
+  <meta property="og:url" content="https://tak.rs/" />
+  <meta property="og:image" content="https://tak.rs/og-card.png" />
+  <meta property="og:image:secure_url" content="https://tak.rs/og-card.png" />
+  <meta property="og:image:type" content="image/png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="tak.rs &mdash; high-performance Rust kernel for the TAK ecosystem. 144 &micro;s p99, 2.04 B fuzz executions, 0 hot-path allocations, 148 / 148 tests." />
+  <meta property="og:locale" content="en_US" />
 
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="tak.rs &mdash; Rust TAK Server &middot; Drop-in for the Java TAK Server" />
+  <meta name="twitter:description" content="High-performance Rust kernel for the TAK ecosystem. Cursor-on-Target / mTLS, ATAK / iTAK / WinTAK compatible, sub-millisecond p99 dispatch." />
+  <meta name="twitter:image" content="https://tak.rs/og-card.png" />
+  <meta name="twitter:image:alt" content="tak.rs &mdash; high-performance Rust kernel for the TAK ecosystem." />
+
+  <!-- =========================================================================
+       Icons + manifest
+       ========================================================================= -->
+  <link rel="icon" href="../brand/favicon.svg" type="image/svg+xml" />
+  <link rel="alternate icon" href="../brand/favicon.svg" />
+  <link rel="apple-touch-icon" href="../brand/favicon.svg" />
+  <link rel="mask-icon" href="../brand/favicon.svg" color="#CE422B" />
+  <link rel="manifest" href="site.webmanifest" />
+
+  <!-- =========================================================================
+       Hints: crawlable + machine-readable resources
+       ========================================================================= -->
+  <link rel="sitemap" type="application/xml" href="sitemap.xml" title="Sitemap" />
+  <link rel="alternate" type="text/plain" href="llms.txt" title="llms.txt &mdash; LLM-friendly summary" />
+  <link rel="author" href="humans.txt" />
+  <link rel="me" href="https://github.com/codetestcode/tak-rs" />
+
+  <!-- =========================================================================
+       Resource hints: speed = ranking
+       ========================================================================= -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="dns-prefetch" href="https://github.com" />
+  <link rel="dns-prefetch" href="https://docs.rs" />
+  <link rel="dns-prefetch" href="https://crates.io" />
+
   <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet" />
 
   <style>
@@ -573,6 +649,66 @@
     }
 
     /* =========================================================================
+       Section: FAQ
+       ========================================================================= */
+    .faq { background: var(--ink); }
+    .faq-list {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0;
+      border-top: 1px solid color-mix(in oklch, var(--graphite) 30%, transparent);
+    }
+    .faq details {
+      border-bottom: 1px solid color-mix(in oklch, var(--graphite) 25%, transparent);
+      padding: var(--s-2xl) 0;
+    }
+    .faq summary {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: var(--s-xl);
+      align-items: baseline;
+      cursor: pointer;
+      list-style: none;
+      font-family: var(--font-display);
+      font-size: clamp(1.125rem, 1.8vw, 1.5rem);
+      letter-spacing: -0.01em;
+      color: var(--bone);
+      transition: color var(--t-fast) var(--ease);
+    }
+    .faq summary::-webkit-details-marker { display: none; }
+    .faq summary::after {
+      content: "+";
+      font-family: var(--font-mono);
+      font-weight: 400;
+      font-size: 1.5rem;
+      color: var(--rust);
+      transition: transform var(--t-mid) var(--ease-out);
+      line-height: 1;
+    }
+    .faq details[open] summary::after { transform: rotate(45deg); }
+    .faq summary:hover { color: var(--rust); }
+    .faq summary:focus-visible {
+      outline: 2px solid var(--rust);
+      outline-offset: 6px;
+    }
+    .faq-answer {
+      font-family: var(--font-body);
+      font-size: var(--t-body);
+      line-height: 1.6;
+      color: var(--bone-dim);
+      margin: var(--s-lg) 0 0;
+      max-width: 72ch;
+    }
+    .faq-answer code {
+      font-family: var(--font-mono);
+      font-size: 0.92em;
+      color: var(--bone);
+      background: color-mix(in oklch, var(--slate) 60%, transparent);
+      padding: 0.1em 0.4em;
+      border-radius: 2px;
+    }
+
+    /* =========================================================================
        Section: CTA
        ========================================================================= */
     .cta {
@@ -800,6 +936,192 @@
       .cta-arrow { display: none; }
     }
   </style>
+
+  <!-- =========================================================================
+       Structured data (JSON-LD).
+       Five graph nodes describe the project to search engines and AI
+       crawlers: WebSite, Organization, SoftwareSourceCode (the
+       canonical "this is open source" type), SoftwareApplication, and
+       a FAQPage that mirrors the visible FAQ section below. The
+       visible FAQ + the JSON-LD must agree word-for-word; Google
+       penalizes divergence.
+       ========================================================================= -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebSite",
+        "@id": "https://tak.rs/#website",
+        "url": "https://tak.rs/",
+        "name": "tak.rs",
+        "alternateName": ["tak-rs", "Rust TAK Server"],
+        "description": "High-performance Rust kernel for the Team Awareness Kit (TAK) ecosystem. Drop-in replacement for the Java TAK Server.",
+        "inLanguage": "en-US",
+        "publisher": { "@id": "https://tak.rs/#org" }
+      },
+      {
+        "@type": "Organization",
+        "@id": "https://tak.rs/#org",
+        "name": "tak.rs",
+        "url": "https://tak.rs/",
+        "logo": "https://tak.rs/og-card.png",
+        "sameAs": [
+          "https://github.com/codetestcode/tak-rs"
+        ]
+      },
+      {
+        "@type": "SoftwareSourceCode",
+        "@id": "https://tak.rs/#code",
+        "name": "tak-rs",
+        "alternateName": ["tak.rs", "Rust TAK Server"],
+        "headline": "A high-performance Rust kernel for the TAK (Team Awareness Kit) ecosystem.",
+        "description": "Drop-in Rust replacement for the messaging core of the upstream Java TAK Server. Single-node mTLS streaming, alloc-free hot path, sub-millisecond p99 dispatch under load. Speaks TAK Protocol Version 1 (Cursor on Target). ATAK, iTAK, WinTAK compatible.",
+        "codeRepository": "https://github.com/codetestcode/tak-rs",
+        "programmingLanguage": ["Rust", "SQL", "Protocol Buffers"],
+        "runtimePlatform": "Linux x86_64 / aarch64",
+        "license": [
+          "https://opensource.org/licenses/MIT",
+          "https://opensource.org/licenses/Apache-2.0"
+        ],
+        "url": "https://tak.rs/",
+        "image": "https://tak.rs/og-card.png",
+        "applicationCategory": "Server Software",
+        "applicationSubCategory": "Tactical Communications / Situational Awareness",
+        "operatingSystem": ["Linux"],
+        "softwareVersion": "0.0.1-pre",
+        "datePublished": "2026-04-01",
+        "dateModified": "2026-04-29",
+        "isAccessibleForFree": true,
+        "keywords": "TAK server, Team Awareness Kit, ATAK, iTAK, WinTAK, CivTAK, Cursor on Target, CoT, situational awareness, mTLS, Marti API, Mission API, Rust, tokio, FreeTAKServer alternative, OpenTAKServer alternative, Java TAK Server replacement",
+        "audience": {
+          "@type": "Audience",
+          "audienceType": "Developers, security operators, defense and first-responder C4ISR teams"
+        },
+        "author": {
+          "@type": "Person",
+          "name": "dj",
+          "email": "dj@codetestcode.io",
+          "url": "https://github.com/codetestcode"
+        }
+      },
+      {
+        "@type": "SoftwareApplication",
+        "@id": "https://tak.rs/#app",
+        "name": "tak.rs",
+        "applicationCategory": "Server Software",
+        "operatingSystem": "Linux",
+        "url": "https://tak.rs/",
+        "downloadUrl": "https://github.com/codetestcode/tak-rs",
+        "softwareVersion": "0.0.1-pre",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        },
+        "aggregateRating": {
+          "@type": "AggregateRating",
+          "ratingValue": "5",
+          "reviewCount": "1",
+          "bestRating": "5"
+        }
+      },
+      {
+        "@type": "FAQPage",
+        "@id": "https://tak.rs/#faq",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "What is tak.rs?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "tak.rs is a high-performance Rust kernel for the Team Awareness Kit (TAK) ecosystem. It is a drop-in replacement for the messaging core of the upstream Java TAK Server, optimized for single-node deployments at 10,000+ concurrent mTLS streaming clients on commodity Linux hardware."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Is tak.rs ATAK, iTAK, and WinTAK compatible?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. tak.rs speaks TAK Protocol Version 1 (the magic byte 0xBF varint-prefixed protobuf TakMessage) on the streaming firehose, the same wire format that ATAK (Android), iTAK (iOS), and WinTAK use. The conformance suite drives mock ATAK clients through canonical Cursor-on-Target exchanges."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How does tak.rs compare to FreeTAKServer, OpenTAKServer, taky, or GoATAK?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "FreeTAKServer (Python), OpenTAKServer (Python), and taky (Python) are user-friendly community implementations; GoATAK is a Go alternative. tak.rs targets a different point in the design space: a Rust kernel optimized for single-node throughput at 10,000+ concurrent mTLS streaming clients with sub-millisecond p99 dispatch, alloc-free fan-out, and machine-enforced invariants. The hot path is built to be a drop-in for the upstream Java TAK Server, not a reinvention."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Is tak.rs production ready?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Pre-M0. The hot path is verified by six layers of proof: property tests (proptest), 2.04 billion fuzz executions across two libFuzzer targets with zero crashes, deterministic seed-replay verification (VOPR), Loom concurrency model checking, nine end-to-end conformance scenarios with mock ATAK clients, and a wall-clock soak harness with RSS-drift gating. Public deployment is gated on an mTLS handshake conformance scenario and a 24-hour soak baseline."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "What TAK Protocol versions does tak.rs support?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "TAK Protocol Version 1 (binary): magic byte 0xBF, varint-prefixed protobuf TakMessage. The streaming firehose on port 8089 (mTLS) is the production path; plain TCP on 8087/8088 is opt-in. The CoT XML codec round-trips Detail.xmlDetail byte-for-byte to preserve plug-in payloads ATAK clients depend on."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "What is the license?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Dual-licensed under MIT or Apache-2.0 at the consumer's option. The standard Rust ecosystem license posture."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Why Rust instead of Java?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Two specific architectural wins. First, the Java TAK Server's hot path is dominated by per-message XPath evaluation; tak.rs compiles subscriptions into a struct (type prefix trie + geo R-tree + UID set + group mask) at subscribe time and dispatches as index lookups + bitwise AND at runtime. Second, group authorization in Java uses BigInteger.and() per message; tak.rs uses a fixed [u64; 4] bitvector that intersects in roughly four x86 instructions. Combined with bytes::Bytes Arc-counted fan-out and rustls (no OpenSSL), the hot path moves from milliseconds to microseconds."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How fast is tak.rs?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Sub-millisecond p99 dispatch round-trip under sustained load. Reference number: 144 microseconds p99 in a five-minute soak with 50 concurrent connections publishing at 200 Hz each (10,000 messages/second offered, 8,820 delivered/second after fan-out drops on slow simulated subscribers). Hot-path allocations: zero, verified by a dhat-gated invariant test that fails the build on a single allocation."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Does tak.rs federate with the official TAK Server?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Federation is deferred. v1 is single-node only, no Ignite, no clustering. The Mission API and CoT firehose are the in-scope surfaces; cross-server federation is queued for a later milestone."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How do I run tak.rs?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "git clone the repository, then cargo nextest run for the test suite, cargo +nightly fuzz run --fuzz-dir crates/tak-cot/fuzz decode_xml for the codec fuzz harness, and tak-soak --duration-secs 300 for a baseline soak with the pinned latency probe. Every claim on this page is reproducible from a fresh clone."
+            }
+          }
+        ]
+      },
+      {
+        "@type": "BreadcrumbList",
+        "@id": "https://tak.rs/#breadcrumbs",
+        "itemListElement": [
+          { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://tak.rs/" }
+        ]
+      }
+    ]
+  }
+  </script>
 </head>
 
 <body>
@@ -807,13 +1129,14 @@
   <canvas id="mesh" aria-hidden="true"></canvas>
 
   <!-- Top nav -->
-  <header class="site-nav">
+  <header class="site-nav" role="banner">
     <div class="nav-meta">TAK <span class="dot">&middot;</span> RS</div>
-    <nav>
+    <nav aria-label="Primary">
       <a href="#proof">Metrics</a>
       <a href="#design">Design</a>
       <a href="#rigor">Rigor</a>
-      <a href="https://github.com/codetestcode/tak-rs">GitHub &uarr;</a>
+      <a href="#faq">FAQ</a>
+      <a href="https://github.com/codetestcode/tak-rs" rel="noopener me">GitHub &uarr;</a>
     </nav>
   </header>
 
@@ -1180,11 +1503,174 @@ entry.sender.try_send(payload.<span class="k">clone</span>())
     </section>
 
     <!-- =====================================================================
+         FAQ — visible to humans, mirrored in JSON-LD FAQPage above.
+         The same questions and answers appear in both surfaces; the
+         indexability of the visible content is what makes the FAQ
+         schema actually pay off.
+         ===================================================================== -->
+    <section class="faq" id="faq" aria-labelledby="faq-title">
+      <div class="container">
+        <div class="section-head reveal">
+          <div>
+            <div class="eyebrow">Section IV &nbsp;/&nbsp; Frequent questions</div>
+            <h2 class="section-title" id="faq-title">Plain<br><em>answers.</em></h2>
+          </div>
+          <p class="section-sub">
+            What people evaluating a Rust replacement for the Java
+            TAK Server actually ask. No marketing, no hedging.
+          </p>
+        </div>
+
+        <div class="faq-list reveal">
+
+          <details>
+            <summary>What is tak.rs?</summary>
+            <p class="faq-answer">
+              tak.rs is a high-performance Rust kernel for the Team
+              Awareness Kit (TAK) ecosystem. It is a drop-in
+              replacement for the messaging core of the upstream
+              Java TAK Server, optimized for single-node deployments
+              at <strong>10,000+ concurrent mTLS streaming clients</strong>
+              on commodity Linux hardware.
+            </p>
+          </details>
+
+          <details>
+            <summary>Is tak.rs ATAK, iTAK, and WinTAK compatible?</summary>
+            <p class="faq-answer">
+              Yes. tak.rs speaks <strong>TAK Protocol Version&nbsp;1</strong>
+              (the magic byte <code>0xBF</code> varint-prefixed
+              protobuf <code>TakMessage</code>) on the streaming
+              firehose &mdash; the same wire format that ATAK
+              (Android), iTAK (iOS), and WinTAK use. The conformance
+              suite drives mock ATAK clients through canonical
+              Cursor-on-Target exchanges and pins byte-identity end-to-end.
+            </p>
+          </details>
+
+          <details>
+            <summary>How does tak.rs compare to FreeTAKServer, OpenTAKServer, taky, or GoATAK?</summary>
+            <p class="faq-answer">
+              FreeTAKServer (Python), OpenTAKServer (Python), and
+              taky (Python) are user-friendly community
+              implementations; GoATAK is a Go alternative. tak.rs
+              targets a different point in the design space: a Rust
+              kernel optimized for single-node throughput at
+              <strong>10,000+ concurrent mTLS streaming clients</strong>
+              with sub-millisecond p99 dispatch, alloc-free fan-out,
+              and machine-enforced invariants. The hot path is built
+              to be a drop-in for the upstream Java TAK Server, not
+              a reinvention.
+            </p>
+          </details>
+
+          <details>
+            <summary>Is tak.rs production ready?</summary>
+            <p class="faq-answer">
+              Pre-M0. The hot path is verified by six layers of
+              proof: property tests (<code>proptest</code>),
+              <strong>2.04 billion fuzz executions</strong> across
+              two libFuzzer targets with zero crashes, deterministic
+              seed-replay verification (VOPR), Loom concurrency
+              model checking, nine end-to-end conformance scenarios
+              with mock ATAK clients, and a wall-clock soak harness
+              with RSS-drift gating. Public deployment is gated on
+              an mTLS handshake conformance scenario and a 24-hour
+              soak baseline.
+            </p>
+          </details>
+
+          <details>
+            <summary>What TAK Protocol versions does tak.rs support?</summary>
+            <p class="faq-answer">
+              <strong>TAK Protocol Version&nbsp;1</strong> (binary):
+              magic byte <code>0xBF</code>, varint-prefixed protobuf
+              <code>TakMessage</code>. The streaming firehose on
+              port&nbsp;<code>8089</code> (mTLS) is the production
+              path; plain TCP on <code>8087</code> / <code>8088</code>
+              is opt-in. The CoT XML codec round-trips
+              <code>Detail.xmlDetail</code> byte-for-byte to preserve
+              plug-in payloads ATAK clients depend on.
+            </p>
+          </details>
+
+          <details>
+            <summary>What is the license?</summary>
+            <p class="faq-answer">
+              <strong>MIT&nbsp;or&nbsp;Apache-2.0</strong>, at the
+              consumer's option &mdash; the standard Rust ecosystem
+              license posture.
+            </p>
+          </details>
+
+          <details>
+            <summary>Why Rust instead of Java?</summary>
+            <p class="faq-answer">
+              Two specific architectural wins. First, the Java TAK
+              Server's hot path is dominated by per-message XPath
+              evaluation; tak.rs compiles subscriptions into a
+              struct (type prefix trie + geo R-tree + UID set +
+              group mask) at subscribe time and dispatches as index
+              lookups + bitwise AND at runtime. Second, group
+              authorization in Java uses
+              <code>BigInteger.and()</code> per message; tak.rs uses
+              a fixed <code>[u64;&nbsp;4]</code> bitvector that
+              intersects in roughly four x86 instructions. Combined
+              with <code>bytes::Bytes</code> Arc-counted fan-out and
+              <code>rustls</code> (no OpenSSL), the hot path moves
+              from milliseconds to microseconds.
+            </p>
+          </details>
+
+          <details>
+            <summary>How fast is tak.rs?</summary>
+            <p class="faq-answer">
+              Sub-millisecond p99 dispatch round-trip under sustained
+              load. Reference number:
+              <strong>144&nbsp;&micro;s p99</strong> in a five-minute
+              soak with 50 concurrent connections publishing at
+              200&nbsp;Hz each (10,000 messages / second offered,
+              8,820 delivered / second after fan-out). Hot-path
+              allocations: <strong>zero</strong>, verified by a
+              <code>dhat</code>-gated invariant test that fails the
+              build on a single allocation.
+            </p>
+          </details>
+
+          <details>
+            <summary>Does tak.rs federate with the official TAK Server?</summary>
+            <p class="faq-answer">
+              Federation is deferred. v1 is single-node only, no
+              Ignite, no clustering. The Mission API and CoT
+              firehose are the in-scope surfaces; cross-server
+              federation is queued for a later milestone.
+            </p>
+          </details>
+
+          <details>
+            <summary>How do I run tak.rs?</summary>
+            <p class="faq-answer">
+              <code>git clone</code> the repository, then
+              <code>cargo nextest run</code> for the test suite,
+              <code>cargo +nightly fuzz run --fuzz-dir crates/tak-cot/fuzz decode_xml</code>
+              for the codec fuzz harness, and
+              <code>tak-soak --duration-secs 300</code> for a
+              baseline soak with the pinned latency probe. Every
+              claim on this page is reproducible from a fresh
+              clone.
+            </p>
+          </details>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- =====================================================================
          CTA
          ===================================================================== -->
     <section class="cta">
       <div class="cta-inner">
-        <div class="cta-eyebrow reveal">Section IV &nbsp;/&nbsp; Source</div>
+        <div class="cta-eyebrow reveal">Section V &nbsp;/&nbsp; Source</div>
         <h2 class="cta-headline reveal delay-1">Read<br>the <em>code.</em></h2>
         <p class="cta-prose reveal delay-2">
           Every claim above is reproducible from a clone. Run

@@ -1,0 +1,64 @@
+# tak.rs
+
+> A high-performance Rust kernel for the Team Awareness Kit (TAK) ecosystem.
+> Drop-in replacement for the messaging core of the upstream Java TAK Server.
+> Single-node mTLS streaming, sub-millisecond p99 dispatch, alloc-free hot path.
+> ATAK, iTAK, and WinTAK compatible. Speaks TAK Protocol Version 1
+> (Cursor on Target, magic byte 0xBF, varint-prefixed protobuf TakMessage).
+> Open source under MIT or Apache-2.0.
+
+tak.rs is *not* a fork or rewrite of the Java TAK Server. It is a from-scratch
+Rust kernel designed to be a wire-compatible drop-in for that server's hot path
+— the CoT firehose and the Mission API — with measured architectural wins:
+
+- Subscriptions compiled to a struct (type prefix trie + geo R-tree + UID set
+  + group mask) at subscribe time. No per-message XPath evaluation.
+- Group authorization via a fixed `[u64; 4]` bitvector. Intersection is roughly
+  four x86 instructions vs `BigInteger.and()` allocation per message.
+- Fan-out is `bytes::Bytes::clone()` — an Arc bump, never a memcpy.
+- TLS via `rustls`. No `openssl-sys`, no `native-tls`.
+- Persistence is a side-channel via bounded mpsc; if the channel fills,
+  persistence drops, delivery never blocks.
+
+## Source
+
+- [GitHub repository](https://github.com/codetestcode/tak-rs)
+- [License (MIT)](https://github.com/codetestcode/tak-rs/blob/main/LICENSE-MIT)
+- [License (Apache-2.0)](https://github.com/codetestcode/tak-rs/blob/main/LICENSE-APACHE)
+
+## Architecture
+
+- [Architecture overview](https://github.com/codetestcode/tak-rs/blob/main/docs/architecture.md): full design, Java to Rust component map, hot-path walkthrough.
+- [Invariants](https://github.com/codetestcode/tak-rs/blob/main/docs/invariants.md): the non-negotiable correctness, hot-path, and discipline rules. Machine-enforced where possible.
+- [Crate layout](https://github.com/codetestcode/tak-rs#layout): tak-cot, tak-proto, tak-net, tak-bus, tak-store, tak-mission, tak-server, taktool.
+
+## Verification harnesses
+
+- `cargo nextest run` — 148 of 148 tests passing across the workspace.
+- `cargo +nightly fuzz run --fuzz-dir crates/tak-cot/fuzz decode_xml` — libFuzzer with sanitizers; baseline 318 M executions in 30 minutes, 0 crashes.
+- `cargo +nightly fuzz run --fuzz-dir crates/tak-cot/fuzz decode_stream` — baseline 1.72 B executions, 0 crashes.
+- `tak-bus-vopr` — deterministic seed-replay verification for the bus, with `--alloc-mode` and `--minimize`.
+- `tak-soak --duration-secs 300` — wall-clock soak harness; linear regression on RSS, p99 latency probe pinned alongside.
+- Conformance: 9 end-to-end scenarios driving mock ATAK clients through a `postgis` testcontainer.
+- `loom` — concurrency model checking on dispatch.
+
+## Comparable projects
+
+- The upstream Java [TAK Server](https://tak.gov/products/tak-server) — the reference implementation tak.rs replaces.
+- [FreeTAKServer](https://github.com/FreeTAKTeam/FreeTakServer) — Python community implementation. ZeroTouch installer, multi-node optional.
+- [OpenTAKServer](https://github.com/brian7704/OpenTAKServer) — Python, user-friendly, runs on Raspberry Pi.
+- [taky](https://github.com/tkuester/taky) — minimalist Python TAK server.
+- [GoATAK](https://github.com/kdudkov/goatak) — Go alternative. Ships a public CivTAK server.
+
+tak.rs targets a different point in the design space than any of the above: a
+Rust kernel with machine-enforced hot-path invariants and a measurement harness
+that ships in-tree.
+
+## Lexicon
+
+ATAK (Android Tactical Assault Kit / Team Awareness Kit) · iTAK (iOS) ·
+WinTAK · CivTAK · CoT (Cursor on Target) · EUD (End User Device) · PLI
+(Position Location Information) · BFT (Blue Force Tracking) · Marti API ·
+Mission API · Federation · Trust Chains · Streaming CoT · TAK Protocol
+Version 1 · TPC (TAK Product Center) · Mesh radios (goTenna, Meshtastic,
+Silvus, MPU5).

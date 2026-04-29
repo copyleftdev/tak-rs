@@ -1,0 +1,7 @@
+# tak.rs security contact (RFC 9116)
+Contact: mailto:dj@codetestcode.io
+Expires: 2027-04-29T00:00:00.000Z
+Preferred-Languages: en
+Canonical: https://tak.rs/.well-known/security.txt
+Acknowledgments: https://github.com/codetestcode/tak-rs/security/advisories
+Policy: https://github.com/codetestcode/tak-rs/security/policy

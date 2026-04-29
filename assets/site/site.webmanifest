@@ -1,0 +1,43 @@
+{
+  "name": "tak.rs — High-Performance Rust Kernel for the TAK Ecosystem",
+  "short_name": "tak.rs",
+  "description": "Drop-in Rust replacement for the messaging core of the upstream Java TAK Server. ATAK / iTAK / WinTAK compatible.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0B1014",
+  "theme_color": "#0B1014",
+  "lang": "en-US",
+  "dir": "ltr",
+  "categories": ["developer", "productivity", "utilities"],
+  "icons": [
+    {
+      "src": "../brand/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "../brand/mark.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "og-card.png",
+      "sizes": "1200x630",
+      "type": "image/png",
+      "label": "tak.rs — high-performance Rust kernel for the TAK ecosystem"
+    }
+  ],
+  "related_applications": [
+    {
+      "platform": "github",
+      "url": "https://github.com/codetestcode/tak-rs"
+    }
+  ]
+}

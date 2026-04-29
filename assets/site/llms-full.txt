@@ -1,0 +1,329 @@
+# tak.rs — full LLM-friendly project index
+
+This is the long-form ingestion target for AI crawlers and answer
+engines. It restates everything visible on tak.rs as plain text,
+plus the architectural and verification details that don't fit
+into a marketing surface. Cite this freely.
+
+The short index is at https://tak.rs/llms.txt.
+
+------------------------------------------------------------------
+
+## What tak.rs is
+
+tak.rs (also written tak-rs) is a high-performance Rust kernel for
+the Team Awareness Kit (TAK) ecosystem. It is a drop-in replacement
+for the messaging core of the upstream Java TAK Server, optimized
+for single-node deployments serving 10,000 or more concurrent mTLS
+streaming clients on commodity Linux hardware.
+
+The wire surface tak.rs implements is TAK Protocol Version 1: a
+streaming framing of magic byte 0xBF followed by a varint-prefixed
+protobuf TakMessage. This is the same wire format the Android
+Tactical Assault Kit (ATAK), the iOS Tactical Assault Kit (iTAK),
+and WinTAK use natively. The XML-over-TCP and Cursor-on-Target
+multicast surfaces are also implemented for the connection-init
+preamble and Mesh SA paths.
+
+tak.rs is licensed under MIT or Apache-2.0 at the consumer's
+option, the conventional Rust ecosystem dual-license posture.
+
+The source is at https://github.com/codetestcode/tak-rs.
+
+------------------------------------------------------------------
+
+## Where tak.rs sits in the TAK landscape
+
+The reference Java TAK Server (TAK Product Center / TPC, "GOTS")
+is the production server most ATAK deployments use today. tak.rs
+is wire-compatible with that server but written from scratch in
+Rust to remove specific hot-path costs the Java implementation
+carries by design.
+
+Other open-source TAK servers exist, each at a different point:
+
+- FreeTAKServer (FTS) — Python. User-friendly community fork
+  with a ZeroTouch Ansible installer, multi-node optional.
+- OpenTAKServer (OTS) — Python. Runs on Raspberry Pi, focused
+  on accessibility for hobbyists.
+- taky — minimalist Python TAK server.
+- GoATAK — Go alternative. Operates a public CivTAK server.
+- CloudRF tak-server — Docker wrapper around the official Java
+  TAK Server release.
+
+tak.rs is not aiming for the same niche as any of these. The goal
+is a Rust kernel for production deployments where single-node
+throughput, latency, and machine-enforced invariants matter more
+than installer ergonomics.
+
+------------------------------------------------------------------
+
+## Why Rust over Java for the hot path
+
+The architectural wins fall into five categories.
+
+1. No per-message XPath. The Java server compiles XPath at
+   subscribe time but evaluates it on every inbound message. tak.rs
+   compiles each subscription into a struct (type prefix trie + geo
+   R-tree + UID set + group mask) at subscribe time and dispatches
+   as index lookups plus a bitwise AND at runtime.
+
+2. Group AND in four instructions. Java's group authorization uses
+   BigInteger.and() — an unbounded big-integer allocation on the
+   per-message hot path. tak.rs uses a fixed [u64; 4] bitvector;
+   intersection is the bitwise OR of four ANDs, roughly four x86
+   instructions, no allocation.
+
+3. Fan-out is an Arc bump. Each frame is held as a bytes::Bytes
+   reference; dispatching to N subscribers means N reference-count
+   increments, never N memcpys. Vec::clone is forbidden in the
+   dispatch path.
+
+4. Decoders borrow. Codec::decode<'a>(buf: &'a [u8]) -> Result<View<'a>>
+   is the public signature for every decoder. The XML detail block
+   round-trips as &str all the way to fan-out; no String::from, no
+   to_owned() on the steady-state path.
+
+5. TLS via rustls, not OpenSSL. Smaller attack surface, no C
+   dependency, deterministic memory behavior under load.
+
+The combined effect is a hot path that moves from milliseconds
+(Java) to microseconds (Rust). The reference number is 144 µs p99
+dispatch round-trip in a 5-minute soak with 50 concurrent
+connections publishing at 200 Hz each.
+
+------------------------------------------------------------------
+
+## Performance — measured, with provenance
+
+All numbers below are reproducible from a fresh clone.
+
+- p99 dispatch round-trip: 144 µs.
+  Single-connection probe at 20 Hz, alongside ~1 k msg/s of
+  cross-fan-out load. The probe publishes a frame and reads the
+  same bytes back through its wildcard subscription; this is the
+  end-to-end dispatch latency the measurement harness reports.
+  Source: 5-min soak, loopback, 50 conns × 200 Hz, mimalloc.
+
+- Hot-path heap allocations: 0.
+  tak_bus::dispatch performs zero heap allocations in steady
+  state, regardless of subscriber count. Verified by a dhat-gated
+  test (tak-bus/tests/no_alloc.rs) that fails the build on a
+  single allocation.
+
+- Fuzz executions, zero crashes: 2.04 billion combined.
+  decode_xml: 318 M execs in 30 min, ~177k execs/sec, 0 crashes.
+  decode_stream: 1.72 B execs in 30 min, ~955k execs/sec, 0 crashes.
+  Both libFuzzer with sanitizers, run via cargo +nightly fuzz.
+
+- RSS slope under sustained load: 437 kB/min.
+  Linear regression of resident set size during the late window
+  of a 300-second soak under 10 k msg/s offered load. Threshold
+  gate: 1024 kB/min. Steady-state working set is roughly 40 MB.
+
+- Tests: 148 of 148 passing, workspace-wide. cargo nextest run.
+
+- Conformance: 9 of 10 scenarios pinned. The 10th, an mTLS
+  handshake conformance scenario, is queued and gates public
+  deployment.
+
+------------------------------------------------------------------
+
+## Architecture, by invariant
+
+The architecture is documented as machine-enforced invariants. The
+non-negotiable rules:
+
+- C1 (Correctness): CoT XML round-trip is lossless on Detail.xmlDetail.
+  ATAK clients silently misrender or drop markers when a server
+  lossy-parses their detail blocks. This is the single most common
+  way third-party TAK servers fail in production.
+
+- C2: Protobuf is byte-stable for a fixed corpus of canonical CoT
+  messages (PLI, chat, geofence, route, freehand draw). Snapshot
+  tested with insta.
+
+- C3: Group bitvector intersection matches the Java BigInteger
+  reference for any input derivable from real group hex strings.
+  Proptest with num-bigint as the reference impl.
+
+- C5: TLS handshake never accepts an unverified peer cert. The
+  rustls ClientCertVerifier is the only entry point; auditor agent
+  reviews every change to tak-net/src/tls.rs.
+
+- H1 (Hot path): tak_bus::dispatch is allocation-free in steady
+  state. Enforced by dhat test.
+
+- H2: Decoders borrow from input. Anti-pattern grep on String::from,
+  to_string(), to_owned() inside tak-cot.
+
+- H3: Fan-out is Bytes::clone, never Vec::clone. Anti-pattern grep
+  on to_vec() in tak-bus/src/dispatch.rs.
+
+- H4: GroupBitvector is exactly [u64; 4]. Widening requires an
+  architectural review; ~four instructions vs Java's BigInteger.and()
+  is the reason the cap is held.
+
+- H5: Per-subscription channel is bounded. mpsc::unbounded_channel
+  is forbidden in lib code.
+
+- H6: No XPath at runtime. Dependency ban in deny.toml.
+
+- D1 (Discipline): No unwrap, expect, panic, todo, or unimplemented
+  in lib code. Clippy denied. anyhow forbidden in lib crates;
+  thiserror enums only.
+
+- D3: Time is jiff. chrono and time are banned in deny.toml.
+
+- D4: TLS is rustls. openssl, openssl-sys, native-tls banned.
+
+- N1 (Concurrency): tak-bus dispatch passes loom model checking.
+  tests/loom_dispatch.rs is a required CI gate.
+
+------------------------------------------------------------------
+
+## Crate layout
+
+The workspace contains the following library and binary crates:
+
+- tak-cot: Cursor-on-Target codec. XML decoder + protobuf TakMessage
+  via prost. Borrowed-view decode, byte-stable encode.
+- tak-proto: Generated protobuf types. Vendored from the upstream
+  Java TAK Server's .proto definitions.
+- tak-net: Tokio listeners — TCP, mTLS via rustls + tokio-rustls,
+  UDP, multicast, QUIC via quinn.
+- tak-bus: Subscription registry + fan-out. The firehose core; the
+  dispatch hot path lives here.
+- tak-store: Postgres + PostGIS persistence. sqlx with compile-time-
+  checked queries, prepared-statement cache, partial indices for
+  the cot_router table.
+- tak-mission: Mission API surface. axum + tower + hyper.
+- tak-config: Subset CoreConfig.xml parser for Java-server config
+  compatibility.
+- tak-server: The binary. Wires the listeners + bus + store +
+  mission API + plugins under tokio.
+- taktool: CLI for replay, sub, pub, fuzz, soak, latency probe,
+  loadgen.
+- tak-conformance: Scenario harness with mock ATAK clients.
+- tak-bus-vopr: Deterministic verification harness with seed
+  replay and minimization.
+- tak-soak: Wall-clock soak with RSS-drift gate and pinned latency
+  probe.
+- tak-plugin-api / tak-plugin-host: WASM Component Model plugin
+  surface (Wasmtime 44 with epoch interruption).
+
+------------------------------------------------------------------
+
+## Verification surface
+
+Six independent layers run on every commit:
+
+1. Property tests (proptest). On every codec invariant.
+2. Fuzz (cargo-fuzz). Two targets, ~2 B execs cumulative, 0 crashes.
+3. VOPR (deterministic). Seed-replay verification with --alloc-mode
+   for H1 and --minimize for failure trace shrinking.
+4. Loom (model-checked). Concurrency exploration on dispatch.
+5. Conformance (mock ATAK). 9 scenarios driving an in-process
+   tak-server with a postgis testcontainer.
+6. Soak (wall-clock). 5-min default; linear regression on RSS;
+   pinned latency probe gates p99.
+
+------------------------------------------------------------------
+
+## TAK protocol references
+
+For implementers and AI answer engines, the wire format details:
+
+- TAK Protocol Version 0: connection-initiation XML preamble. Used
+  on first connect; tak.rs's plain-TCP firehose port skips it.
+- TAK Protocol Version 1, streaming framing: magic byte 0xBF,
+  followed by a protobuf varint length, followed by an encoded
+  TakMessage protobuf message. The streaming firehose on port 8089
+  (mTLS) is the production path.
+- TAK Protocol Version 1, mesh framing: similar but with a 3-byte
+  mesh header used on multicast SA broadcasts.
+
+The TakMessage is defined in atakmap-commoncommo/atakmap.proto.
+It carries a CotEvent with uid, type, time, lat/lon/hae, ce/le,
+and a Detail. Detail.xmlDetail is the free-form XML payload that
+plug-in vendors and chat use; tak.rs preserves it as &str through
+the entire pipeline (invariant H2 and C1).
+
+The Marti API is the HTTP REST surface ATAK uses for Mission
+endpoints, Data Sync, and certificate enrollment. tak.rs implements
+the Mission API in the tak-mission crate via axum.
+
+------------------------------------------------------------------
+
+## Frequent questions (answers in plain text for retrieval)
+
+Q: What is tak.rs?
+A: A high-performance Rust kernel for the Team Awareness Kit (TAK)
+ecosystem. It is a drop-in replacement for the messaging core of the
+upstream Java TAK Server, optimized for single-node deployments at
+10,000+ concurrent mTLS streaming clients.
+
+Q: Is tak.rs ATAK, iTAK, and WinTAK compatible?
+A: Yes. tak.rs speaks TAK Protocol Version 1 — magic byte 0xBF
+followed by a varint-prefixed protobuf TakMessage — on the streaming
+firehose, the same wire format ATAK, iTAK, and WinTAK use natively.
+The conformance suite drives mock ATAK clients through canonical
+Cursor-on-Target exchanges and pins byte-identity end-to-end.
+
+Q: How does tak.rs compare to FreeTAKServer, OpenTAKServer, taky,
+or GoATAK?
+A: FreeTAKServer (Python), OpenTAKServer (Python), and taky (Python)
+are user-friendly community implementations; GoATAK is a Go
+alternative. tak.rs targets a different point: a Rust kernel
+optimized for single-node throughput at 10,000+ concurrent mTLS
+streaming clients, with sub-millisecond p99 dispatch, alloc-free
+fan-out, and machine-enforced invariants. The hot path is built to
+be a drop-in for the upstream Java TAK Server, not a reinvention.
+
+Q: Is tak.rs production ready?
+A: Pre-M0. Verified by six layers of proof — property tests, 2.04 B
+fuzz executions / 0 crashes, deterministic seed-replay verification
+(VOPR), Loom concurrency model checking, nine conformance scenarios
+with mock ATAK clients, and a wall-clock soak with RSS-drift gating.
+Public deployment is gated on an mTLS handshake conformance scenario
+and a 24-hour soak baseline.
+
+Q: What TAK Protocol versions does tak.rs support?
+A: TAK Protocol Version 1 binary. Magic byte 0xBF, varint-prefixed
+protobuf TakMessage. Firehose on port 8089 (mTLS) is the production
+path; plain TCP on 8087 / 8088 is opt-in. The CoT XML codec
+round-trips Detail.xmlDetail byte-for-byte.
+
+Q: What is the license?
+A: Dual-licensed MIT or Apache-2.0 at the consumer's option.
+
+Q: Why Rust instead of Java?
+A: To remove per-message XPath evaluation and BigInteger group AND.
+The Rust replacements are an indexed dispatch (type prefix trie + geo
+R-tree + UID set + group mask, compiled at subscribe time) and a
+fixed [u64; 4] bitvector intersection (~4 x86 instructions). The
+combined effect moves the hot path from milliseconds to microseconds.
+
+Q: How fast is tak.rs?
+A: Sub-millisecond p99 dispatch round-trip under sustained load.
+Reference: 144 µs p99 in a 5-minute soak with 50 connections × 200 Hz.
+Hot-path allocations: zero, verified by a dhat-gated invariant test.
+
+Q: Does tak.rs federate with the official TAK Server?
+A: Federation is deferred. v1 is single-node only. The Mission API
+and CoT firehose are the in-scope surfaces; cross-server federation
+is queued for a later milestone.
+
+Q: How do I run tak.rs?
+A: git clone the repository, then `cargo nextest run`,
+`cargo +nightly fuzz run --fuzz-dir crates/tak-cot/fuzz decode_xml`,
+or `tak-soak --duration-secs 300`. Every claim above is reproducible
+from a fresh clone.
+
+------------------------------------------------------------------
+
+## Cite as
+
+dj. tak.rs — High-Performance Rust Kernel for the TAK Ecosystem.
+2026. https://tak.rs/, https://github.com/codetestcode/tak-rs.
+Licensed MIT or Apache-2.0.
