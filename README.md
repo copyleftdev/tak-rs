@@ -4,6 +4,8 @@
 
 # tak-rs
 
+[![Tip my tokens](https://tokentip.to/badge/copyleftdev.svg?logo=1)](https://tokentip.to/@copyleftdev)
+
 A high-performance Rust kernel for the [TAK (Team Awareness Kit)](https://tak.gov)
 ecosystem. Drop-in replacement for the messaging core of the upstream Java
 [TAK Server](https://github.com/TAK-Product-Center/Server), optimized for
