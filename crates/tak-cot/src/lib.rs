@@ -94,4 +94,6 @@ impl From<core::str::Utf8Error> for Error {
 pub type Result<T> = core::result::Result<T, Error>;
 
 pub mod proto;
+#[cfg(feature = "uas")]
+pub mod uas;
 pub mod xml;

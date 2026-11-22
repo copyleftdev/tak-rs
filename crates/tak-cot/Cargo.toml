@@ -8,6 +8,10 @@ license      .workspace = true
 authors      .workspace = true
 repository   .workspace = true
 
+[features]
+## Remote ID / UAS telemetry to CoT via the `uas` module (uas-cot + remoteid).
+uas = ["dep:uas-cot"]
+
 [dependencies]
 thiserror  .workspace = true
 prost      .workspace = true
@@ -15,6 +19,7 @@ tak-proto  .workspace = true
 quick-xml  .workspace = true
 smallvec   .workspace = true
 jiff       .workspace = true
+uas-cot    = { workspace = true, optional = true }
 
 [dev-dependencies]
 proptest   .workspace = true
