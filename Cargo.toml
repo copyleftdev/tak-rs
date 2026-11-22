@@ -95,6 +95,11 @@ mimalloc = { version = "0.1", default-features = false }
 clap = { version = "4", features = ["derive"] }
 indicatif = "0.17"
 
+# --- Remote ID / UAS telemetry to CoT (optional, tak-cot `uas` feature) ---
+# default-features = false keeps misb/mavlink-tlog/roxmltree out; `remoteid`
+# is the only path we use, and it pulls no banned dep (see deny.toml).
+uas-cot = { version = "0.6", default-features = false, features = ["remoteid"] }
+
 # --- serde for config + small JSON ---
 serde      = { version = "1", features = ["derive"] }
 serde_json = "1"
